@@ -3,19 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  TrendingUp,
   DollarSign,
   Users,
   PhoneCall,
   CheckCircle2,
-  ArrowUpRight,
   Plus,
   ArrowRight,
   Clock,
-  Sparkles,
-  Building2,
   KanbanSquare,
-  AlertCircle
+  IndianRupee
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -133,15 +129,15 @@ export default function DashboardPage() {
       setStageCounts(stagesMap)
       setUpcomingTasks(pendingTasksList.slice(0, 5))
 
-      // Activities: Build from recent contacts, deals, tasks, calls
+      // Activities
       const generatedActivities: any[] = []
 
       contacts.slice(0, 3).forEach((c: any) => {
         generatedActivities.push({
           id: `contact-${c.id}`,
           type: 'contact',
-          title: `Contact: ${c.first_name} ${c.last_name}`,
-          desc: c.company ? `Company: ${c.company} • Status: ${c.status || 'lead'}` : (c.email || 'New Contact created'),
+          title: `Contact: ${c.first_name} ${c.last_name || ''}`.trim(),
+          desc: c.company ? `Company: ${c.company}` : (c.email || 'Contact added'),
           time: formatDate(c.created_at),
           badge: c.status || 'Lead',
           created_at: c.created_at,
@@ -165,7 +161,7 @@ export default function DashboardPage() {
           id: `task-${t.id}`,
           type: 'task',
           title: `Task: ${t.title}`,
-          desc: t.due_date ? `Due: ${formatDate(t.due_date)}` : 'Priority Task',
+          desc: t.due_date ? `Due: ${formatDate(t.due_date)}` : 'Task assigned',
           time: formatDate(t.created_at),
           badge: t.type || 'Task',
           created_at: t.created_at,
@@ -177,9 +173,9 @@ export default function DashboardPage() {
           id: `call-${call.id}`,
           type: 'call',
           title: `Call: ${call.to_number}`,
-          desc: `Duration: ${call.duration_seconds || 0}s • Outcome: ${call.outcome || 'completed'}`,
+          desc: `Duration: ${call.duration_seconds || 0}s`,
           time: formatDate(call.created_at),
-          badge: 'Call Log',
+          badge: 'Call',
           created_at: call.created_at,
         })
       })
@@ -196,7 +192,6 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchDashboardData()
 
-    // Realtime subscription for cross-app synchronization
     const channel = supabase
       .channel('dashboard_realtime_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
@@ -227,7 +222,7 @@ export default function DashboardPage() {
       setUpcomingTasks(prev =>
         prev.map(t => (t.id === taskId ? { ...t, is_completed: !currentCompleted } : t))
       )
-      toast.success(!currentCompleted ? 'Task marked as completed' : 'Task marked as pending')
+      toast.success(!currentCompleted ? 'Task completed' : 'Task marked pending')
       fetchDashboardData()
     } catch (e) {
       console.error(e)
@@ -253,7 +248,7 @@ export default function DashboardPage() {
             Welcome back, {displayName} 👋
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Here is your live CRM pipeline and activity overview synced with the Flutter mobile app in real-time.
+            Overview of your sales pipeline, deals, contacts, and recent activities.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -277,14 +272,14 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Pipeline Value</span>
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                <DollarSign className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                ₹
               </div>
             </div>
             <div className="mt-3">
               <div className="text-2xl font-bold">{formatCurrency(stats.totalPipelineValue)}</div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                <span>{stats.activeDealsCount} open active deals</span>
+                <span>{stats.activeDealsCount} active deals</span>
               </div>
             </div>
           </CardContent>
@@ -304,7 +299,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                 <span>
                   {stats.activeDealsCount > 0
-                    ? `Avg. deal size: ${formatCurrency(stats.totalPipelineValue / stats.activeDealsCount)}`
+                    ? `Avg: ${formatCurrency(stats.totalPipelineValue / stats.activeDealsCount)}`
                     : 'No active deals'}
                 </span>
               </div>
@@ -324,7 +319,7 @@ export default function DashboardPage() {
             <div className="mt-3">
               <div className="text-2xl font-bold">{stats.totalContacts} Contacts</div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                <span>Realtime synced across Mobile & Web</span>
+                <span>Active in CRM</span>
               </div>
             </div>
           </CardContent>
@@ -382,30 +377,25 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Two-Column Grid: Live Activity Stream & Upcoming Tasks */}
+      {/* Two-Column Grid: Recent Activity & Upcoming Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Activities (2 cols) */}
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader className="pb-3 border-b border-border/60">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Live Activity Timeline</CardTitle>
-              <Badge variant="outline" className="text-[10px] gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" /> Realtime Sync
-              </Badge>
-            </div>
+            <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {recentActivities.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted-foreground">
-                No recent activity recorded yet. Create a contact, deal, or task to see live updates.
+                No recent activity recorded yet. Create a contact, deal, or task to see updates.
               </div>
             ) : (
               <div className="divide-y divide-border/60">
                 {recentActivities.map((act) => (
                   <div key={act.id} className="p-4 flex items-start gap-3 hover:bg-muted/20 transition-colors">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
                       {act.type === 'call' && <PhoneCall className="h-4 w-4" />}
-                      {act.type === 'deal' && <DollarSign className="h-4 w-4" />}
+                      {act.type === 'deal' && '₹'}
                       {act.type === 'contact' && <Users className="h-4 w-4" />}
                       {act.type === 'task' && <CheckCircle2 className="h-4 w-4" />}
                     </div>

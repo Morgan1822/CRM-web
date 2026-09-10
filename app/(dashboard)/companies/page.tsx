@@ -8,16 +8,14 @@ import {
   Globe,
   Phone,
   MapPin,
-  Users,
   ExternalLink,
-  MoreHorizontal,
   Loader2,
   Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -111,7 +109,7 @@ export default function CompaniesPage() {
 
       if (error) throw error
 
-      toast.success('Company account created successfully')
+      toast.success('Company created successfully')
       await loadCompanies()
 
       setName('')
@@ -149,7 +147,7 @@ export default function CompaniesPage() {
             <Building2 className="h-6 w-6 text-primary" /> Companies & Accounts
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Organize organization profiles, employee associations, and aggregate account deals.
+            Manage client companies and organization accounts.
           </p>
         </div>
 
@@ -162,9 +160,9 @@ export default function CompaniesPage() {
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Add Company Account</DialogTitle>
+                <DialogTitle>Add Company</DialogTitle>
                 <DialogDescription>
-                  Create a company profile to group contacts, deals, and communication logs.
+                  Create a company record to associate contacts and deals.
                 </DialogDescription>
               </DialogHeader>
 
@@ -174,7 +172,7 @@ export default function CompaniesPage() {
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Acme Cloud Dynamics"
+                    placeholder="e.g. Acme Technologies Pvt Ltd"
                     required
                   />
                 </div>
@@ -185,7 +183,7 @@ export default function CompaniesPage() {
                     <Input
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      placeholder="acme.io"
+                      placeholder="acme.in"
                     />
                   </div>
                   <div className="space-y-1">
@@ -193,7 +191,7 @@ export default function CompaniesPage() {
                     <Input
                       value={industry}
                       onChange={(e) => setIndustry(e.target.value)}
-                      placeholder="SaaS / Cloud"
+                      placeholder="IT / Services"
                     />
                   </div>
                 </div>
@@ -218,7 +216,7 @@ export default function CompaniesPage() {
                     <Input
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 (555) 000-0000"
+                      placeholder="+91 98765 43210"
                     />
                   </div>
                 </div>
@@ -229,7 +227,7 @@ export default function CompaniesPage() {
                     <Input
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      placeholder="San Francisco"
+                      placeholder="Bengaluru"
                     />
                   </div>
                   <div className="space-y-1">
@@ -269,11 +267,11 @@ export default function CompaniesPage() {
       {isLoading ? (
         <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span>Loading companies from Supabase...</span>
+          <span>Loading companies...</span>
         </div>
       ) : filtered.length === 0 ? (
         <Card className="p-8 text-center text-xs text-muted-foreground">
-          No companies registered. Click "+ Add Company" to create your first organization account.
+          No companies registered. Click "+ Add Company" to create one.
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

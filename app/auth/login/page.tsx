@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { ArrowRight, Lock, Mail, User, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, Lock, Mail, User, Sparkles } from 'lucide-react'
 
 export default function AuthPage() {
   const router = useRouter()
@@ -34,12 +34,6 @@ export default function AuthPage() {
       })
 
       if (error) {
-        // If placeholder URL or auth fails in offline/demo mode, allow demo bypass
-        if (error.message.includes('fetch') || error.message.includes('placeholder')) {
-          toast.info('Supabase URL not yet configured — entering in Demo Mode!')
-          router.push('/dashboard')
-          return
-        }
         toast.error(error.message)
         return
       }
@@ -49,8 +43,7 @@ export default function AuthPage() {
         router.push('/dashboard')
       }
     } catch (err: any) {
-      toast.info('Entering Demo Dashboard...')
-      router.push('/dashboard')
+      toast.error(err.message || 'Sign in failed')
     } finally {
       setIsLoading(false)
     }
@@ -76,11 +69,6 @@ export default function AuthPage() {
       })
 
       if (error) {
-        if (error.message.includes('fetch') || error.message.includes('placeholder')) {
-          toast.info('Entering Demo Dashboard...')
-          router.push('/dashboard')
-          return
-        }
         toast.error(error.message)
         return
       }
@@ -90,15 +78,14 @@ export default function AuthPage() {
         router.push('/dashboard')
       }
     } catch (err: any) {
-      toast.info('Entering Demo Dashboard...')
-      router.push('/dashboard')
+      toast.error(err.message || 'Registration failed')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleQuickDemo = (roleName: string) => {
-    toast.success(`Logged in as ${roleName} (Demo)`)
+    toast.success(`Logged in as ${roleName}`)
     router.push('/dashboard')
   }
 
@@ -107,12 +94,12 @@ export default function AuthPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-2xl shadow-md">
-            A
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-2xl shadow-sm">
+            C
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Apex CRM Hub</h1>
-          <p className="text-sm text-muted-foreground">
-            Shared Postgres Realtime Sales & Telephony System
+          <h1 className="text-2xl font-bold tracking-tight">Sales CRM</h1>
+          <p className="text-xs text-muted-foreground">
+            Sign in to manage leads, pipeline, and customer interactions
           </p>
         </div>
 
@@ -121,7 +108,7 @@ export default function AuthPage() {
             <CardHeader className="pb-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Create Account</TabsTrigger>
+                <TabsTrigger value="signup">Register</TabsTrigger>
               </TabsList>
             </CardHeader>
 
@@ -130,11 +117,11 @@ export default function AuthPage() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5" /> Work Email
+                      <Mail className="h-3.5 w-3.5" /> Email
                     </label>
                     <Input
                       type="email"
-                      placeholder="alex.morgan@company.com"
+                      placeholder="name@company.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -171,7 +158,7 @@ export default function AuthPage() {
                     </label>
                     <Input
                       type="text"
-                      placeholder="Alex Morgan"
+                      placeholder="e.g. Rahul Sharma"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
@@ -179,11 +166,11 @@ export default function AuthPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5" /> Work Email
+                      <Mail className="h-3.5 w-3.5" /> Email
                     </label>
                     <Input
                       type="email"
-                      placeholder="alex.morgan@company.com"
+                      placeholder="rahul@company.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -204,7 +191,7 @@ export default function AuthPage() {
                 </CardContent>
                 <CardFooter>
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Get Started'}
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </CardFooter>
@@ -213,10 +200,10 @@ export default function AuthPage() {
           </Tabs>
         </Card>
 
-        {/* 1-Click Fast Demo Roles Access */}
+        {/* Quick Demo Login */}
         <div className="p-4 rounded-xl border bg-card/60 backdrop-blur text-center space-y-3 shadow-sm">
-          <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-primary">
-            <Sparkles className="h-3.5 w-3.5" /> Quick One-Click Demo Access
+          <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-primary" /> Quick Demo Role Access
           </div>
           <div className="grid grid-cols-3 gap-2">
             <Button
@@ -225,7 +212,7 @@ export default function AuthPage() {
               className="text-xs"
               onClick={() => handleQuickDemo('Admin')}
             >
-              👑 Admin
+              Admin
             </Button>
             <Button
               variant="outline"
@@ -233,7 +220,7 @@ export default function AuthPage() {
               className="text-xs"
               onClick={() => handleQuickDemo('Manager')}
             >
-              👔 Manager
+              Manager
             </Button>
             <Button
               variant="outline"
@@ -241,7 +228,7 @@ export default function AuthPage() {
               className="text-xs"
               onClick={() => handleQuickDemo('Agent')}
             >
-              🎧 Agent
+              Agent
             </Button>
           </div>
         </div>

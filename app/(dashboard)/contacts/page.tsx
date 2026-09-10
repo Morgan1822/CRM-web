@@ -9,18 +9,15 @@ import {
   Mail,
   Building2,
   Download,
-  Upload,
   MoreHorizontal,
   Trash2,
   Edit2,
-  ExternalLink,
-  Sparkles,
   Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -109,7 +106,6 @@ export default function ContactsPage() {
   useEffect(() => {
     loadContacts()
 
-    // Realtime subscription for cross-app synchronization
     const channel = supabase
       .channel('contacts_realtime_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
@@ -147,7 +143,6 @@ export default function ContactsPage() {
 
     try {
       if (editingContact) {
-        // Update existing in Supabase
         const { error } = await (supabase.from('contacts') as any)
           .update({
             first_name: firstName,
@@ -163,9 +158,8 @@ export default function ContactsPage() {
           .eq('id', editingContact.id)
 
         if (error) throw error
-        toast.success('Contact updated successfully')
+        toast.success('Contact updated')
       } else {
-        // Create new in Supabase
         const { error } = await (supabase.from('contacts') as any)
           .insert([
             {
@@ -182,7 +176,7 @@ export default function ContactsPage() {
           ])
 
         if (error) throw error
-        toast.success('New lead created and synced with Flutter mobile app')
+        toast.success('New contact added')
       }
 
       await loadContacts()
@@ -196,7 +190,7 @@ export default function ContactsPage() {
 
   const handleDeleteContact = async (contactId: string) => {
     if (!can('contacts', 'delete')) {
-      toast.error('You do not have permission to delete contacts')
+      toast.error('Permission denied')
       return
     }
 
@@ -257,7 +251,7 @@ export default function ContactsPage() {
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement('a')
     link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `crm_contacts_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `contacts_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -290,7 +284,7 @@ export default function ContactsPage() {
             <Users className="h-6 w-6 text-primary" /> Contacts & Leads
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage customer profiles, lead statuses, click-to-call dialer logs, and real-time mobile sync.
+            Manage customer profiles, lead statuses, and contact details.
           </p>
         </div>
 
@@ -308,9 +302,9 @@ export default function ContactsPage() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>{editingContact ? 'Edit Contact' : 'Create New Contact / Lead'}</DialogTitle>
+                  <DialogTitle>{editingContact ? 'Edit Contact' : 'Create Contact'}</DialogTitle>
                   <DialogDescription>
-                    Fill in the contact information. Changes sync immediately to both Web and Mobile.
+                    Fill in the contact information below.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -321,7 +315,7 @@ export default function ContactsPage() {
                       <Input
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        placeholder="e.g. Sarah"
+                        placeholder="e.g. Ramesh"
                         required
                       />
                     </div>
@@ -330,7 +324,7 @@ export default function ContactsPage() {
                       <Input
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        placeholder="e.g. Jenkins"
+                        placeholder="e.g. Kumar"
                       />
                     </div>
                   </div>
@@ -342,7 +336,7 @@ export default function ContactsPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="sarah@company.com"
+                        placeholder="ramesh@company.com"
                       />
                     </div>
                     <div className="space-y-1">
@@ -350,7 +344,7 @@ export default function ContactsPage() {
                       <Input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+1 (555) 000-0000"
+                        placeholder="+91 98765 43210"
                       />
                     </div>
                   </div>
@@ -361,7 +355,7 @@ export default function ContactsPage() {
                       <Input
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="Acme Corp"
+                        placeholder="Acme Pvt Ltd"
                       />
                     </div>
                     <div className="space-y-1">
@@ -369,7 +363,7 @@ export default function ContactsPage() {
                       <Input
                         value={jobTitle}
                         onChange={(e) => setJobTitle(e.target.value)}
-                        placeholder="VP of Product"
+                        placeholder="Director"
                       />
                     </div>
                   </div>
@@ -394,7 +388,7 @@ export default function ContactsPage() {
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add key context, budget notes, or requirements..."
+                      placeholder="Add key context or discussion notes..."
                       className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs resize-none"
                     />
                   </div>
@@ -417,7 +411,6 @@ export default function ContactsPage() {
       {/* Filter and Search Bar */}
       <Card className="shadow-sm">
         <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Status Filters */}
           <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
             {['all', 'lead', 'contacted', 'qualified', 'customer'].map((st) => (
               <Button
@@ -432,7 +425,6 @@ export default function ContactsPage() {
             ))}
           </div>
 
-          {/* Search Box */}
           <div className="relative w-full md:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -452,7 +444,7 @@ export default function ContactsPage() {
             <TableRow className="bg-muted/30 hover:bg-muted/30">
               <TableHead className="text-xs font-semibold">Contact</TableHead>
               <TableHead className="text-xs font-semibold">Company & Title</TableHead>
-              <TableHead className="text-xs font-semibold">Phone / Click-to-Call</TableHead>
+              <TableHead className="text-xs font-semibold">Phone</TableHead>
               <TableHead className="text-xs font-semibold">Status</TableHead>
               <TableHead className="text-xs font-semibold">Created Date</TableHead>
               <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
@@ -464,14 +456,14 @@ export default function ContactsPage() {
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span>Loading real-time contacts from Supabase...</span>
+                    <span>Loading contacts...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : filteredContacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
-                  No contacts found in your database. Click "+ Add Contact" or create one in the mobile app.
+                  No contacts found. Click "+ Add Contact" to create a contact.
                 </TableCell>
               </TableRow>
             ) : (
@@ -511,7 +503,6 @@ export default function ContactsPage() {
                         <a
                           href={`tel:${c.phone}`}
                           className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium hover:bg-emerald-500/20 transition-colors"
-                          title="Click to dial with Twilio Voice"
                         >
                           <Phone className="h-3 w-3" />
                           <span>{c.phone}</span>

@@ -84,17 +84,17 @@ export function DialerPanel({
         contactName: contactName || undefined,
       })
 
-      // Log call into shared Supabase Postgres database
+      // Log call into database
       try {
         const { data: callLog } = await (supabase.from('calls') as any)
           .insert([
             {
               contact_id: contactId || null,
               user_id: user?.id || null,
-              provider: 'twilio',
+              provider: 'phone',
               provider_call_sid: callSid,
               direction: 'outbound',
-              from_number: '+1 (555) 000-1111',
+              from_number: '+91 98765 43210',
               to_number: phoneNumber,
               status: 'in-progress',
               duration_seconds: 0,
@@ -108,7 +108,7 @@ export function DialerPanel({
           setActiveCallId(callLog.id)
         }
       } catch (e) {
-        console.log('Local call logged in state')
+        console.log('Local call logged')
       }
 
       toast.success(`Calling ${contactName || phoneNumber}...`)
@@ -122,14 +122,13 @@ export function DialerPanel({
     await dialer.hangup()
     setCallStatus('completed')
 
-    // Update call duration and notes in database
     if (activeCallId) {
       try {
         await (supabase.from('calls') as any)
           .update({
             status: 'completed',
             duration_seconds: duration,
-            notes: callNotes || 'Call completed from Web CRM.',
+            notes: callNotes || 'Call completed.',
           })
           .eq('id', activeCallId)
       } catch (e) {
@@ -171,7 +170,7 @@ export function DialerPanel({
       <div className="bg-primary px-4 py-3 text-primary-foreground flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Phone className="h-4 w-4" />
-          <span className="font-semibold text-xs tracking-wide">Twilio Voice Dialer</span>
+          <span className="font-semibold text-xs tracking-wide">Phone Dialer</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-primary-foreground/20 text-primary-foreground border-none">
@@ -184,7 +183,7 @@ export function DialerPanel({
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Recipient / Caller ID Display */}
+        {/* Recipient Display */}
         {contactName && (
           <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/60 text-xs">
             <User className="h-3.5 w-3.5 text-muted-foreground" />
@@ -198,7 +197,7 @@ export function DialerPanel({
             type="text"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
-            placeholder="+1 (555) 000-0000"
+            placeholder="+91 98765 43210"
             className="text-center text-lg font-semibold tracking-wider border-none bg-transparent focus-visible:ring-0"
             disabled={callStatus === 'in-progress' || callStatus === 'connecting'}
           />
@@ -209,7 +208,7 @@ export function DialerPanel({
           )}
         </div>
 
-        {/* Keypad Grid (when idle) */}
+        {/* Keypad Grid */}
         {callStatus === 'idle' && (
           <div className="grid grid-cols-3 gap-2">
             {keypadButtons.map(([num, letters]) => (
@@ -243,7 +242,7 @@ export function DialerPanel({
               <textarea
                 value={callNotes}
                 onChange={(e) => setCallNotes(e.target.value)}
-                placeholder="Log call outcome and notes..."
+                placeholder="Log discussion notes..."
                 className="w-full mt-1 p-2 text-xs rounded-md border border-input bg-transparent resize-none h-16"
               />
             </div>
@@ -254,7 +253,7 @@ export function DialerPanel({
         {callStatus === 'completed' && (
           <div className="text-center space-y-2 py-2">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
-            <p className="text-xs font-semibold">Call Logged Successfully</p>
+            <p className="text-xs font-semibold">Call Logged</p>
             <p className="text-[11px] text-muted-foreground">
               Duration: {formatSeconds(duration)}
             </p>
@@ -273,7 +272,7 @@ export function DialerPanel({
           </div>
         )}
 
-        {/* Main Call / Hangup Trigger */}
+        {/* Call / Hangup Button */}
         {callStatus !== 'completed' && (
           <div className="flex items-center gap-2">
             {callStatus === 'idle' && (

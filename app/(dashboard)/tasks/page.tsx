@@ -9,14 +9,13 @@ import {
   User,
   CheckCircle2,
   Circle,
-  AlertCircle,
   Trash2,
   Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -79,7 +78,6 @@ export default function TasksPage() {
   useEffect(() => {
     loadTasksAndContacts()
 
-    // Realtime subscription for cross-app synchronization
     const channel = supabase
       .channel('tasks_realtime_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
@@ -110,7 +108,7 @@ export default function TasksPage() {
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, is_completed: nextCompleted } : t))
       )
-      toast.success(nextCompleted ? 'Task marked as completed' : 'Task marked as pending')
+      toast.success(nextCompleted ? 'Task completed' : 'Task marked pending')
     } catch (e: any) {
       toast.error(e.message || 'Failed to update task')
     }
@@ -154,7 +152,7 @@ export default function TasksPage() {
 
       if (error) throw error
 
-      toast.success('Task created and push alert dispatched to mobile assignee')
+      toast.success('Task created successfully')
       await loadTasksAndContacts()
 
       setTitle('')
@@ -190,7 +188,7 @@ export default function TasksPage() {
             <CheckSquare className="h-6 w-6 text-primary" /> Tasks & Follow-ups
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track daily action items, call reminders, and auto-dispatched FCM push alerts synchronized with mobile.
+            Track daily action items, reminders, and customer follow-ups.
           </p>
         </div>
 
@@ -205,7 +203,7 @@ export default function TasksPage() {
               <DialogHeader>
                 <DialogTitle>Create New Task</DialogTitle>
                 <DialogDescription>
-                  Tasks created here immediately trigger push notifications and sync to the Flutter mobile app.
+                  Add a task or follow-up item.
                 </DialogDescription>
               </DialogHeader>
 
@@ -215,7 +213,7 @@ export default function TasksPage() {
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Call client regarding proposal"
+                    placeholder="e.g. Call client for follow-up"
                     required
                   />
                 </div>
@@ -269,7 +267,7 @@ export default function TasksPage() {
                       <option value="">-- None (General) --</option>
                       {contactsList.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.first_name} {c.last_name}
+                          {c.first_name} {c.last_name || ''}
                         </option>
                       ))}
                     </select>
@@ -281,7 +279,7 @@ export default function TasksPage() {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Additional context or action items..."
+                    placeholder="Details or notes..."
                     className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs resize-none"
                   />
                 </div>
@@ -330,16 +328,16 @@ export default function TasksPage() {
       {isLoading ? (
         <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span>Loading tasks from Supabase...</span>
+          <span>Loading tasks...</span>
         </div>
       ) : filteredTasks.length === 0 ? (
         <Card className="p-8 text-center text-xs text-muted-foreground">
-          No tasks found. Click "+ Add Task" or create a task from the mobile app.
+          No tasks found. Click "+ Add Task" to create a task.
         </Card>
       ) : (
         <div className="space-y-3">
           {filteredTasks.map((task) => {
-            const contactName = task.contact ? `${task.contact.first_name} ${task.contact.last_name}`.trim() : null
+            const contactName = task.contact ? `${task.contact.first_name} ${task.contact.last_name || ''}`.trim() : null
 
             return (
               <Card

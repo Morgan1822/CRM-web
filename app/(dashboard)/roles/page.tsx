@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { ShieldCheck, Plus, UserCheck, Check, X, ShieldAlert, UserPlus, Mail } from 'lucide-react'
+import { ShieldCheck, UserCheck, Check, X, UserPlus, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,17 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useSupabase } from '@/components/providers/supabase-provider'
 import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
-import type { Role, RolePermission } from '@/types'
+import type { Role } from '@/types'
 
 const ENTITIES = [
   { key: 'contacts', label: 'Contacts & Leads' },
   { key: 'companies', label: 'Companies & Accounts' },
   { key: 'deals', label: 'Deals & Pipeline' },
-  { key: 'calls', label: 'Calls & Dialer Logs' },
+  { key: 'calls', label: 'Call Logs' },
   { key: 'tasks', label: 'Tasks & Reminders' },
   { key: 'activities', label: 'Activity Feed' },
   { key: 'roles', label: 'Roles & Permissions' },
-  { key: 'settings', label: 'Workspace Settings' },
+  { key: 'settings', label: 'Settings' },
 ]
 
 export default function RolesPage() {
@@ -32,7 +32,7 @@ export default function RolesPage() {
     {
       id: '00000000-0000-0000-0000-000000000001',
       name: 'Admin',
-      description: 'Full unrestricted access to all CRM entities and team roles',
+      description: 'Full unrestricted access to all entities and settings',
       is_system: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -40,7 +40,7 @@ export default function RolesPage() {
     {
       id: '00000000-0000-0000-0000-000000000002',
       name: 'Manager',
-      description: 'Can view, create, and manage all leads, deals, tasks, and reports',
+      description: 'Can view, create, and manage leads, deals, tasks, and reports',
       is_system: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -68,10 +68,9 @@ export default function RolesPage() {
   })
 
   const [teamMembers, setTeamMembers] = useState([
-    { id: '1', email: 'alex.morgan@company.com', full_name: 'Alex Morgan', role: 'Admin', status: 'Active' },
-    { id: '2', email: 'sarah.j@company.com', full_name: 'Sarah Jenkins', role: 'Manager', status: 'Active' },
-    { id: '3', email: 'dave.sales@company.com', full_name: 'David Miller', role: 'Agent', status: 'Active' },
-    { id: '4', email: 'elena.r@company.com', full_name: 'Elena Rostova', role: 'Agent', status: 'Invited' },
+    { id: '1', email: 'admin@company.com', full_name: 'Admin User', role: 'Admin', status: 'Active' },
+    { id: '2', email: 'manager@company.com', full_name: 'Sales Manager', role: 'Manager', status: 'Active' },
+    { id: '3', email: 'agent@company.com', full_name: 'Sales Agent', role: 'Agent', status: 'Active' },
   ])
 
   const [inviteEmail, setInviteEmail] = useState('')
@@ -79,7 +78,6 @@ export default function RolesPage() {
   const [inviteRole, setInviteRole] = useState('Agent')
   const [isInviteOpen, setIsInviteOpen] = useState(false)
 
-  // Fetch roles from Supabase if connected
   useEffect(() => {
     const loadRoles = async () => {
       try {
@@ -89,7 +87,7 @@ export default function RolesPage() {
           setSelectedRole(data[0])
         }
       } catch (e) {
-        // use fallback initial state
+        // fallback
       }
     }
     loadRoles()
@@ -129,7 +127,7 @@ export default function RolesPage() {
       },
     ])
 
-    toast.success(`Invitation sent to ${inviteEmail} with role "${inviteRole}"`)
+    toast.success(`Invitation sent to ${inviteEmail}`)
     setInviteEmail('')
     setInviteName('')
     setIsInviteOpen(false)
@@ -144,28 +142,28 @@ export default function RolesPage() {
             <ShieldCheck className="h-6 w-6 text-primary" /> Roles & Permissions
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage granular entity permissions and team member assignments enforced at both RLS and UI layers.
+            Manage user roles, granular permissions, and team members.
           </p>
         </div>
 
         <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 shadow-sm">
-              <UserPlus className="h-4 w-4" /> Invite Team Member
+              <UserPlus className="h-4 w-4" /> Add Team Member
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite New User</DialogTitle>
+              <DialogTitle>Invite Team Member</DialogTitle>
               <DialogDescription>
-                Send an invitation to join this CRM. They will inherit permissions based on their assigned role.
+                Assign a role and grant access to the CRM workspace.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleInviteUser} className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium">Full Name</label>
                 <Input
-                  placeholder="e.g. Jordan Lee"
+                  placeholder="e.g. Anand V"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
                 />
@@ -174,22 +172,22 @@ export default function RolesPage() {
                 <label className="text-xs font-medium">Email Address</label>
                 <Input
                   type="email"
-                  placeholder="jordan@company.com"
+                  placeholder="anand@company.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">Assign Role</label>
+                <label className="text-xs font-medium">Role</label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="Admin">Admin (Full Access)</option>
-                  <option value="Manager">Manager (Team & Deals Lead)</option>
-                  <option value="Agent">Agent (Sales Operator)</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Agent">Agent</option>
                 </select>
               </div>
               <DialogFooter className="pt-2">
@@ -212,10 +210,9 @@ export default function RolesPage() {
         {/* Permissions Matrix Tab */}
         <TabsContent value="matrix" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Roles Selection Column */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Defined Roles
+                Roles
               </h3>
               <div className="space-y-2">
                 {roles.map((r) => {
@@ -234,7 +231,7 @@ export default function RolesPage() {
                         <span className="font-semibold text-sm">{r.name}</span>
                         {r.is_system && (
                           <Badge variant="outline" className="text-[10px]">
-                            System
+                            Default
                           </Badge>
                         )}
                       </div>
@@ -257,12 +254,9 @@ export default function RolesPage() {
                         {selectedRole.name} Permissions
                       </CardTitle>
                       <CardDescription className="text-xs mt-0.5">
-                        Granular CRUD access rules for the {selectedRole.name} role
+                        Access controls for the {selectedRole.name} role
                       </CardDescription>
                     </div>
-                    <Badge className="bg-primary/10 text-primary border-primary/20">
-                      RLS Enforced
-                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -359,9 +353,9 @@ export default function RolesPage() {
         <TabsContent value="team">
           <Card>
             <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-base">Workspace Team Members</CardTitle>
+              <CardTitle className="text-base">Team Members</CardTitle>
               <CardDescription className="text-xs">
-                Users registered in Supabase Auth and their assigned CRM roles.
+                Active team members and their assigned CRM roles.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

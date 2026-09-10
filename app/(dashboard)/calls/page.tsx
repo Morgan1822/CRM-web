@@ -5,17 +5,10 @@ import {
   PhoneCall,
   PhoneIncoming,
   PhoneOutgoing,
-  PhoneMissed,
-  Clock,
-  Play,
-  FileText,
-  User,
-  Plus,
   Loader2
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -26,7 +19,6 @@ import {
 } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/utils'
 import { useSupabase } from '@/components/providers/supabase-provider'
-import { toast } from 'sonner'
 
 export default function CallsPage() {
   const { supabase } = useSupabase()
@@ -89,21 +81,13 @@ export default function CallsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <PhoneCall className="h-6 w-6 text-primary" /> Calls & Telephony Logs
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Twilio Voice call history, duration records, and post-call notes synchronized across Web and Mobile.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="px-3 py-1 text-xs">
-            Provider: <strong className="ml-1 text-primary">Twilio Voice (WebRTC)</strong>
-          </Badge>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <PhoneCall className="h-6 w-6 text-primary" /> Call Logs
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Call history, duration records, and discussion notes.
+        </p>
       </div>
 
       {/* Calls Table */}
@@ -125,19 +109,19 @@ export default function CallsPage() {
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span>Loading call records from Supabase...</span>
+                    <span>Loading call records...</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : calls.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
-                  No call logs found in database. Use the in-app dialer to place a call.
+                  No call logs found. Use the in-app dialer to place a call.
                 </TableCell>
               </TableRow>
             ) : (
               calls.map((call) => {
-                const contactName = call.contact ? `${call.contact.first_name} ${call.contact.last_name}`.trim() : null
+                const contactName = call.contact ? `${call.contact.first_name} ${call.contact.last_name || ''}`.trim() : null
                 const companyName = call.contact?.company || null
 
                 return (
@@ -158,7 +142,7 @@ export default function CallsPage() {
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground">{contactName || 'Unassigned Contact'}</p>
+                          <p className="font-semibold text-foreground">{contactName || 'Direct Call'}</p>
                           {companyName && <p className="text-[10px] text-muted-foreground">{companyName}</p>}
                         </div>
                       </div>

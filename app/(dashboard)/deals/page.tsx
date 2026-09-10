@@ -4,22 +4,17 @@ import React, { useState, useEffect } from 'react'
 import {
   KanbanSquare,
   Plus,
-  DollarSign,
   Calendar,
   Building2,
   User,
-  ArrowRight,
   MoreVertical,
-  CheckCircle2,
-  XCircle,
-  TrendingUp,
   Loader2,
   Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -98,7 +93,6 @@ export default function DealsPage() {
   useEffect(() => {
     loadDealsAndContacts()
 
-    // Realtime subscription for cross-app synchronization
     const channel = supabase
       .channel('deals_realtime_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
@@ -117,7 +111,7 @@ export default function DealsPage() {
 
   const handleMoveStage = async (dealId: string, newStageKey: string) => {
     if (!can('deals', 'edit')) {
-      toast.error('You do not have permission to edit deal stages')
+      toast.error('Permission denied')
       return
     }
 
@@ -144,7 +138,7 @@ export default function DealsPage() {
 
   const handleDeleteDeal = async (dealId: string) => {
     if (!can('deals', 'delete')) {
-      toast.error('You do not have permission to delete deals')
+      toast.error('Permission denied')
       return
     }
 
@@ -174,7 +168,7 @@ export default function DealsPage() {
           {
             title: dealTitle,
             value: parseFloat(dealValue) || 0,
-            currency: 'USD',
+            currency: 'INR',
             stage: dealStage,
             contact_id: contactId || null,
             expected_close_date: closeDate || null,
@@ -185,7 +179,7 @@ export default function DealsPage() {
 
       if (error) throw error
 
-      toast.success('Deal created and synced across Web & Mobile CRM')
+      toast.success('Deal created successfully')
       await loadDealsAndContacts()
 
       setDealTitle('')
@@ -209,7 +203,7 @@ export default function DealsPage() {
             <KanbanSquare className="h-6 w-6 text-primary" /> Deals & Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Visual sales pipeline with realtime stage updates synchronized with the Flutter mobile app.
+            Visual sales pipeline with stage tracking and conversion metrics.
           </p>
         </div>
 
@@ -230,7 +224,7 @@ export default function DealsPage() {
                 <DialogHeader>
                   <DialogTitle>Create New Deal</DialogTitle>
                   <DialogDescription>
-                    Add a deal to your sales pipeline. It will immediately appear on the Flutter mobile app.
+                    Add a deal to your sales pipeline.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -240,19 +234,19 @@ export default function DealsPage() {
                     <Input
                       value={dealTitle}
                       onChange={(e) => setDealTitle(e.target.value)}
-                      placeholder="e.g. Enterprise SLA Agreement"
+                      placeholder="e.g. Annual Software License"
                       required
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">Deal Value ($ USD) *</label>
+                      <label className="text-xs font-medium">Deal Value (₹ INR) *</label>
                       <Input
                         type="number"
                         value={dealValue}
                         onChange={(e) => setDealValue(e.target.value)}
-                        placeholder="50000"
+                        placeholder="100000"
                         required
                       />
                     </div>
@@ -302,7 +296,7 @@ export default function DealsPage() {
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Key deal drivers, decision makers, terms..."
+                      placeholder="Key terms, requirements, or next steps..."
                       className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs resize-none"
                     />
                   </div>
@@ -324,7 +318,7 @@ export default function DealsPage() {
       {isLoading ? (
         <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span>Loading live pipeline from Supabase...</span>
+          <span>Loading pipeline...</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
@@ -430,7 +424,7 @@ export default function DealsPage() {
                             <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10px] text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {deal.expected_close_date ? formatDate(deal.expected_close_date) : 'No close date'}
+                                {deal.expected_close_date ? formatDate(deal.expected_close_date) : 'No date'}
                               </span>
                             </div>
                           </CardContent>

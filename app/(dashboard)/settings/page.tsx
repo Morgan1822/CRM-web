@@ -3,13 +3,7 @@
 import React, { useState } from 'react'
 import {
   Settings,
-  Phone,
-  Smartphone,
-  Shield,
   Save,
-  Key,
-  Database,
-  Bell,
   CheckCircle2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,31 +16,31 @@ import { toast } from 'sonner'
 export default function SettingsPage() {
   const { profile } = useSupabase()
 
-  const [fullName, setFullName] = useState(profile?.full_name || 'Alex Morgan')
-  const [email, setEmail] = useState(profile?.email || 'alex.morgan@company.com')
-  const [phone, setPhone] = useState(profile?.phone || '+1 (555) 000-1111')
+  const [fullName, setFullName] = useState(profile?.full_name || 'Admin User')
+  const [email, setEmail] = useState(profile?.email || 'admin@company.com')
+  const [phone, setPhone] = useState(profile?.phone || '+91 98765 43210')
 
-  const [twilioCallerId, setTwilioCallerId] = useState('+1 (555) 000-1111')
-  const [dialerProvider, setDialerProvider] = useState('twilio')
+  const [callerId, setCallerId] = useState('+91 98765 43210')
+  const [dialerProvider, setDialerProvider] = useState('phone')
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success('Profile settings saved successfully')
+    toast.success('Profile settings updated')
   }
 
   const handleSaveTelephony = (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success('Telephony and Twilio configuration updated')
+    toast.success('Dialer settings updated')
   }
 
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Settings className="h-6 w-6 text-primary" /> Workspace & User Settings
+          <Settings className="h-6 w-6 text-primary" /> Settings
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Configure profile details, Twilio Voice caller ID, and Flutter mobile sync parameters.
+          Manage your personal profile and workspace preferences.
         </p>
       </div>
 
@@ -56,7 +50,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">User Profile</CardTitle>
             <CardDescription className="text-xs">
-              Your personal information displayed across activity timelines and call logs.
+              Your personal information displayed on calls and task assignments.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
@@ -70,11 +64,11 @@ export default function SettingsPage() {
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="font-medium text-foreground">Direct Phone</label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <label className="font-medium text-foreground">Phone</label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
               </div>
               <div className="space-y-1.5">
-                <label className="font-medium text-foreground">Assigned Role</label>
+                <label className="font-medium text-foreground">Role</label>
                 <div className="h-9 flex items-center">
                   <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
                     {profile?.role?.name || 'Admin'}
@@ -91,62 +85,55 @@ export default function SettingsPage() {
         </form>
       </Card>
 
-      {/* Telephony & Dialer Configuration */}
+      {/* Dialer Settings */}
       <Card className="shadow-sm">
         <form onSubmit={handleSaveTelephony}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Telephony & Voice Dialer</CardTitle>
-                <CardDescription className="text-xs">
-                  Configure outbound caller ID and WebRTC voice settings.
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="text-[10px]">
-                Twilio Programmable Voice
-              </Badge>
-            </div>
+            <CardTitle className="text-base">Phone & Dialer Configuration</CardTitle>
+            <CardDescription className="text-xs">
+              Configure outbound caller ID for click-to-call.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="font-medium text-foreground">Active Telephony Provider</label>
+                <label className="font-medium text-foreground">Dialer Provider</label>
                 <select
                   value={dialerProvider}
                   onChange={(e) => setDialerProvider(e.target.value)}
                   className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
                 >
-                  <option value="twilio">Twilio Voice (Default)</option>
-                  <option value="exotel">Exotel Voice</option>
-                  <option value="custom">Custom WebRTC Gateway</option>
+                  <option value="phone">Standard Web Dialer</option>
+                  <option value="twilio">Twilio Voice</option>
+                  <option value="exotel">Exotel</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="font-medium text-foreground">Default Caller ID (Outbound Phone)</label>
+                <label className="font-medium text-foreground">Caller ID (Outbound Phone)</label>
                 <Input
-                  value={twilioCallerId}
-                  onChange={(e) => setTwilioCallerId(e.target.value)}
-                  placeholder="+1 (555) 000-1111"
+                  value={callerId}
+                  onChange={(e) => setCallerId(e.target.value)}
+                  placeholder="+91 98765 43210"
                 />
               </div>
             </div>
           </CardContent>
           <CardFooter className="border-t border-border/60 justify-end pt-4">
             <Button type="submit" size="sm" className="gap-1.5 text-xs">
-              <Save className="h-3.5 w-3.5" /> Update Telephony
+              <Save className="h-3.5 w-3.5" /> Save Dialer Settings
             </Button>
           </CardFooter>
         </form>
       </Card>
 
-      {/* Mobile App Sync & FCM Status */}
+      {/* System Status */}
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base">Flutter Mobile App Sync (FCM Push)</CardTitle>
+              <CardTitle className="text-base">System Status</CardTitle>
               <CardDescription className="text-xs">
-                Shared Supabase Postgres Realtime synchronization status.
+                Real-time database connection status.
               </CardDescription>
             </div>
             <Badge variant="success" className="text-[10px] gap-1">
@@ -157,18 +144,10 @@ export default function SettingsPage() {
         <CardContent className="space-y-3 text-xs">
           <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between">
             <div>
-              <p className="font-semibold text-foreground">Supabase Realtime Replication</p>
-              <p className="text-muted-foreground text-[11px]">Subscribed to contacts, deals, calls, and tasks tables.</p>
+              <p className="font-semibold text-foreground">Database Sync</p>
+              <p className="text-muted-foreground text-[11px]">Real-time database replication active.</p>
             </div>
             <span className="text-xs font-mono font-bold text-emerald-600">Active</span>
-          </div>
-
-          <div className="p-3 rounded-lg border bg-muted/20 flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-foreground">FCM Device Tokens Registered</p>
-              <p className="text-muted-foreground text-[11px]">Active Flutter mobile instances (iOS / Android).</p>
-            </div>
-            <Badge variant="secondary">3 Devices</Badge>
           </div>
         </CardContent>
       </Card>
