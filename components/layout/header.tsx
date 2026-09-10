@@ -59,7 +59,7 @@ export function Header({ onOpenDialer }: HeaderProps) {
       <form onSubmit={handleSearchSubmit} className="relative w-72 md:w-96">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search contacts, deals, companies... (Cmd + K)"
+          placeholder="Search contacts, deals, companies..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 h-9 bg-muted/40 text-xs rounded-lg"
