@@ -11,10 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useSupabase } from '@/components/providers/supabase-provider'
+import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
   const { profile } = useSupabase()
+  const { role } = usePermissions()
 
   const [fullName, setFullName] = useState(profile?.full_name || 'Admin User')
   const [email, setEmail] = useState(profile?.email || 'admin@company.com')
@@ -70,8 +72,8 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="font-medium text-foreground">Role</label>
                 <div className="h-9 flex items-center">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">
-                    {profile?.role?.name || 'Admin'}
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs capitalize">
+                    {role || 'Agent'}
                   </Badge>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Bell, Phone, LogOut, User, ShieldCheck } from 'lucide-react'
 import { useSupabase } from '@/components/providers/supabase-provider'
+import { usePermissions } from '@/hooks/use-permission'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -25,6 +26,7 @@ interface HeaderProps {
 export function Header({ onOpenDialer }: HeaderProps) {
   const router = useRouter()
   const { user, profile, supabase } = useSupabase()
+  const { role } = usePermissions()
   const [searchQuery, setSearchQuery] = useState('')
 
   const handleSignOut = async () => {
@@ -100,8 +102,8 @@ export function Header({ onOpenDialer }: HeaderProps) {
               </Avatar>
               <div className="flex flex-col text-left hidden md:block">
                 <span className="text-xs font-medium line-clamp-1">{displayName}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {profile?.role?.name || 'Admin'}
+                <span className="text-[10px] text-muted-foreground capitalize">
+                  {role || 'Agent'}
                 </span>
               </div>
             </Button>
@@ -111,7 +113,7 @@ export function Header({ onOpenDialer }: HeaderProps) {
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{displayName}</p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {profile?.email || 'admin@apexcrm.io'}
+                  {profile?.email || user?.email || 'user@company.com'}
                 </p>
               </div>
             </DropdownMenuLabel>
