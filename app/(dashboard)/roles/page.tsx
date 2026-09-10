@@ -499,6 +499,23 @@ export default function RolesPage() {
     }
   }
 
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
+          <ShieldCheck className="h-8 w-8 text-primary/70" />
+        </div>
+        <h2 className="text-xl font-bold tracking-tight">Admin Access Required</h2>
+        <p className="text-xs text-muted-foreground max-w-sm mt-1.5 mb-6 leading-relaxed">
+          Roles & Permissions configuration and team security settings are restricted to Workspace Administrators.
+        </p>
+        <Button onClick={() => window.location.href = '/dashboard'} variant="outline" size="sm" className="text-xs">
+          Return to Dashboard
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}

@@ -26,7 +26,7 @@ interface HeaderProps {
 export function Header({ onOpenDialer }: HeaderProps) {
   const router = useRouter()
   const { user, profile, supabase } = useSupabase()
-  const { role } = usePermissions()
+  const { role, isSuperAdmin } = usePermissions()
   const [searchQuery, setSearchQuery] = useState('')
 
   const handleSignOut = async () => {
@@ -122,10 +122,12 @@ export function Header({ onOpenDialer }: HeaderProps) {
               <User className="mr-2 h-4 w-4" />
               <span>Profile Settings</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/roles')}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              <span>Roles & Access</span>
-            </DropdownMenuItem>
+            {isSuperAdmin && (
+              <DropdownMenuItem onClick={() => router.push('/roles')}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                <span>Roles & Access</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
