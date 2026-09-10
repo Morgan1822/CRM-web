@@ -77,7 +77,7 @@ export function Sidebar() {
 
       {/* Bottom User / Role Card */}
       <div className="p-4 border-t border-border">
-        <div className="flex items-center justify-between text-xs px-1">
+        <div className="flex items-center gap-2 text-xs px-1">
           <span className="text-muted-foreground">Role:</span>
           <span className="font-semibold text-foreground px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px]">
             {role || 'Admin'}
