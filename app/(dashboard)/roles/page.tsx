@@ -194,45 +194,45 @@ export default function RolesPage() {
     [supabase]
   )
 
-  // 3. Fetch Team Members safely without nonexistent columns
+  // 3. Fetch Team Members safely with select('*')
   const loadTeamMembers = useCallback(async () => {
     setIsLoadingTeam(true)
     try {
       const { data, error } = await (supabase.from('profiles') as any)
-        .select('id, email, full_name, avatar_url, role, role_id, status, created_at')
-        .order('created_at', { ascending: false })
+        .select('*')
 
-      if (error || !data || data.length === 0) {
-        // Fallback to active logged in session
-        if (user) {
-          const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Agent'
-          setTeamMembers([
-            {
-              id: user.id,
-              email: user.email || 'admin@crm.com',
-              full_name: profile?.full_name || user.email?.split('@')[0] || 'User',
-              role: currentRoleName,
-              role_id: profile?.role_id || DEFAULT_ROLES[2].id,
-              status: 'active',
-            },
-          ])
-        } else {
-          setTeamMembers([])
-        }
-      } else {
-        setTeamMembers(data)
+      if (error) {
+        console.error('Error loading team members from profiles:', error)
       }
-    } catch (e: any) {
-      console.error('Failed to load team members:', e)
-      if (user) {
-        const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Agent'
+
+      if (data && data.length > 0) {
+        // Sort by full_name or email
+        const sorted = [...data].sort((a: any, b: any) =>
+          (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '')
+        )
+        setTeamMembers(sorted)
+      } else if (user) {
+        const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Admin'
         setTeamMembers([
           {
             id: user.id,
             email: user.email || 'admin@crm.com',
             full_name: profile?.full_name || user.email?.split('@')[0] || 'User',
             role: currentRoleName,
-            role_id: profile?.role_id || DEFAULT_ROLES[2].id,
+            status: 'active',
+          },
+        ])
+      }
+    } catch (e: any) {
+      console.error('Failed to load team members:', e)
+      if (user) {
+        const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Admin'
+        setTeamMembers([
+          {
+            id: user.id,
+            email: user.email || 'admin@crm.com',
+            full_name: profile?.full_name || user.email?.split('@')[0] || 'User',
+            role: currentRoleName,
             status: 'active',
           },
         ])
