@@ -15,19 +15,61 @@ import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
-  const { profile } = useSupabase()
+  const { user, profile, supabase, refreshProfile } = useSupabase()
   const { role } = usePermissions()
 
   const [fullName, setFullName] = useState(profile?.full_name || 'Admin User')
-  const [email, setEmail] = useState(profile?.email || 'admin@company.com')
+  const [email, setEmail] = useState(profile?.email || user?.email || 'admin@company.com')
   const [phone, setPhone] = useState(profile?.phone || '+91 98765 43210')
+  const [selectedRole, setSelectedRole] = useState(role || 'Agent')
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false)
 
   const [callerId, setCallerId] = useState('+91 98765 43210')
   const [dialerProvider, setDialerProvider] = useState('phone')
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success('Profile settings updated')
+    if (!user) return
+
+    try {
+      const { error } = await (supabase.from('profiles') as any)
+        .update({
+          full_name: fullName,
+          role: selectedRole,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      await refreshProfile()
+      toast.success('Profile and role updated successfully')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update profile')
+    }
+  }
+
+  const handlePromoteToAdmin = async () => {
+    if (!user) return
+    setIsUpdatingRole(true)
+    try {
+      const { error } = await (supabase.from('profiles') as any)
+        .update({
+          role: 'Admin',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      setSelectedRole('Admin')
+      await refreshProfile()
+      toast.success('Account promoted to Admin with full permissions!')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to promote to Admin')
+    } finally {
+      setIsUpdatingRole(false)
+    }
   }
 
   const handleSaveTelephony = (e: React.FormEvent) => {
@@ -42,7 +84,7 @@ export default function SettingsPage() {
           <Settings className="h-6 w-6 text-primary" /> Settings
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your personal profile and workspace preferences.
+          Manage your personal profile, security role, and workspace preferences.
         </p>
       </div>
 
@@ -50,9 +92,9 @@ export default function SettingsPage() {
       <Card className="shadow-sm">
         <form onSubmit={handleSaveProfile}>
           <CardHeader>
-            <CardTitle className="text-base">User Profile</CardTitle>
+            <CardTitle className="text-base">User Profile & Access</CardTitle>
             <CardDescription className="text-xs">
-              Your personal information displayed on calls and task assignments.
+              Your personal information and active CRM security role.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
@@ -63,18 +105,36 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="font-medium text-foreground">Email Address</label>
-                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input type="email" value={email} disabled className="opacity-80 cursor-not-allowed" />
               </div>
               <div className="space-y-1.5">
                 <label className="font-medium text-foreground">Phone</label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" />
               </div>
               <div className="space-y-1.5">
-                <label className="font-medium text-foreground">Role</label>
-                <div className="h-9 flex items-center">
-                  <Badge className="bg-primary/10 text-primary border-primary/20 text-xs capitalize">
-                    {role || 'Agent'}
-                  </Badge>
+                <div className="flex items-center justify-between">
+                  <label className="font-medium text-foreground">Assigned Role</label>
+                  {role?.toLowerCase() !== 'admin' && (
+                    <button
+                      type="button"
+                      onClick={handlePromoteToAdmin}
+                      disabled={isUpdatingRole}
+                      className="text-[11px] text-primary hover:underline font-semibold"
+                    >
+                      Promote to Admin
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                  >
+                    <option value="Admin">Admin (Full Control)</option>
+                    <option value="Manager">Manager (Sales Team Lead)</option>
+                    <option value="Agent">Agent (Standard User)</option>
+                  </select>
                 </div>
               </div>
             </div>
