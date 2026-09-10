@@ -10,7 +10,9 @@ import {
   MapPin,
   Users,
   ExternalLink,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2,
+  Trash2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,58 +30,13 @@ import {
 import { useSupabase } from '@/components/providers/supabase-provider'
 import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
-import type { Company } from '@/types'
-
-const initialCompanies = [
-  {
-    id: '20000000-0000-0000-0000-000000000001',
-    name: 'Acme Cloud Dynamics',
-    domain: 'acmecloud.io',
-    industry: 'Cloud Infrastructure',
-    size: '51-200',
-    phone: '+1 (555) 234-5678',
-    website: 'https://acmecloud.io',
-    city: 'San Francisco',
-    state: 'CA',
-    country: 'USA',
-    contacts_count: 3,
-    deals_count: 1,
-  },
-  {
-    id: '20000000-0000-0000-0000-000000000002',
-    name: 'Starlight FinTech',
-    domain: 'starlightpay.com',
-    industry: 'Financial Technology',
-    size: '201-1000',
-    phone: '+1 (555) 345-6789',
-    website: 'https://starlightpay.com',
-    city: 'New York',
-    state: 'NY',
-    country: 'USA',
-    contacts_count: 2,
-    deals_count: 1,
-  },
-  {
-    id: '20000000-0000-0000-0000-000000000003',
-    name: 'Apex BioHealth',
-    domain: 'apexbio.health',
-    industry: 'Healthcare AI',
-    size: '11-50',
-    phone: '+1 (555) 456-7890',
-    website: 'https://apexbio.health',
-    city: 'Boston',
-    state: 'MA',
-    country: 'USA',
-    contacts_count: 1,
-    deals_count: 1,
-  },
-]
 
 export default function CompaniesPage() {
-  const { supabase } = useSupabase()
+  const { supabase, user } = useSupabase()
   const { can } = usePermissions()
 
-  const [companies, setCompanies] = useState(initialCompanies)
+  const [companies, setCompanies] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddOpen, setIsAddOpen] = useState(false)
 
@@ -91,65 +48,97 @@ export default function CompaniesPage() {
   const [phone, setPhone] = useState('')
   const [website, setWebsite] = useState('')
   const [city, setCity] = useState('')
-  const [country, setCountry] = useState('USA')
+
+  const loadCompanies = async () => {
+    try {
+      const { data, error } = await (supabase.from('companies') as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && data) {
+        setCompanies(data)
+      }
+    } catch (e) {
+      console.error('Failed to load companies:', e)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadCompanies = async () => {
-      try {
-        const { data } = await (supabase.from('companies') as any)
-          .select('*')
-          .is('deleted_at', null)
-          .order('name')
-
-        if (data && data.length > 0) {
-          setCompanies(data)
-        }
-      } catch (e) {
-        // use initial
-      }
-    }
     loadCompanies()
+
+    const channel = supabase
+      .channel('companies_realtime_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
+        loadCompanies()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [supabase])
 
   const filtered = companies.filter(
     (c) =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.industry?.toLowerCase().includes(searchQuery.toLowerCase())
+      (c.domain?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (c.industry?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   )
 
-  const handleCreateCompany = (e: React.FormEvent) => {
+  const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) {
       toast.error('Company name is required')
       return
     }
 
-    const newCompany = {
-      id: Math.random().toString(),
-      name,
-      domain,
-      industry,
-      size,
-      phone,
-      website: website || `https://${domain}`,
-      city,
-      state: 'CA',
-      country,
-      contacts_count: 0,
-      deals_count: 0,
+    try {
+      const { error } = await (supabase.from('companies') as any)
+        .insert([
+          {
+            name,
+            domain: domain || null,
+            industry: industry || null,
+            size,
+            phone: phone || null,
+            website: website || (domain ? `https://${domain}` : null),
+            city: city || null,
+            assigned_to: user?.id || null,
+          },
+        ])
+
+      if (error) throw error
+
+      toast.success('Company account created successfully')
+      await loadCompanies()
+
+      setName('')
+      setDomain('')
+      setIndustry('')
+      setPhone('')
+      setWebsite('')
+      setCity('')
+      setIsAddOpen(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || 'Failed to create company')
     }
+  }
 
-    setCompanies((prev) => [newCompany, ...prev])
-    toast.success('Company account created successfully')
+  const handleDeleteCompany = async (id: string) => {
+    try {
+      const { error } = await (supabase.from('companies') as any)
+        .delete()
+        .eq('id', id)
 
-    setName('')
-    setDomain('')
-    setIndustry('')
-    setPhone('')
-    setWebsite('')
-    setCity('')
-    setIsAddOpen(false)
+      if (error) throw error
+      toast.success('Company deleted')
+      await loadCompanies()
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete company')
+    }
   }
 
   return (
@@ -277,69 +266,79 @@ export default function CompaniesPage() {
       </div>
 
       {/* Companies Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((company) => (
-          <Card key={company.id} className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-                    {company.name[0]}
+      {isLoading ? (
+        <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <span>Loading companies from Supabase...</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-8 text-center text-xs text-muted-foreground">
+          No companies registered. Click "+ Add Company" to create your first organization account.
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((company) => (
+            <Card key={company.id} className="shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                      {company.name?.[0] || 'C'}
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold">{company.name}</CardTitle>
+                      <p className="text-xs text-muted-foreground">{company.industry || 'General'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold">{company.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{company.industry || 'Enterprise'}</p>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-[10px]">
+                      {company.size || '1-10'}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteCompany(company.id)}
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-[10px]">
-                  {company.size}
-                </Badge>
-              </div>
-            </CardHeader>
+              </CardHeader>
 
-            <CardContent className="space-y-3 pt-0 text-xs">
-              <div className="space-y-1.5 text-muted-foreground">
-                {company.domain && (
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                    <a
-                      href={company.website || `https://${company.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-primary transition-colors flex items-center gap-1"
-                    >
-                      {company.domain} <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-                {company.city && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span>
-                      {company.city}, {company.country}
-                    </span>
-                  </div>
-                )}
-                {company.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5" />
-                    <span>{company.phone}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" /> {company.contacts_count || 1} Contacts
-                </span>
-                <span className="font-semibold text-foreground">
-                  {company.deals_count || 1} Active Deal
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <CardContent className="space-y-3 pt-0 text-xs">
+                <div className="space-y-1.5 text-muted-foreground">
+                  {company.domain && (
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                      <a
+                        href={company.website || `https://${company.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-primary transition-colors flex items-center gap-1"
+                      >
+                        {company.domain} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  )}
+                  {company.city && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>{company.city}</span>
+                    </div>
+                  )}
+                  {company.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-3.5 w-3.5" />
+                      <span>{company.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

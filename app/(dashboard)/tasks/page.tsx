@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   Circle,
   AlertCircle,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,60 +30,14 @@ import { formatDateTime, formatDate } from '@/lib/utils'
 import { useSupabase } from '@/components/providers/supabase-provider'
 import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
-import type { Task } from '@/types'
-
-const initialTasks = [
-  {
-    id: '50000000-0000-0000-0000-000000000001',
-    title: 'Follow up on SLA questions with Sarah Jenkins',
-    description: 'Review SLA uptime guarantees and share disaster recovery documentation.',
-    type: 'call',
-    priority: 'high',
-    due_date: new Date(Date.now() + 86400000).toISOString(),
-    is_completed: false,
-    contact_name: 'Sarah Jenkins',
-    assigned_to: 'Alex Morgan',
-  },
-  {
-    id: '50000000-0000-0000-0000-000000000002',
-    title: 'Prepare FinTech Integration Deck',
-    description: 'Customize API latency benchmarks for Michael Chang.',
-    type: 'todo',
-    priority: 'medium',
-    due_date: new Date(Date.now() + 86400000 * 3).toISOString(),
-    is_completed: false,
-    contact_name: 'Michael Chang',
-    assigned_to: 'Sarah Jenkins',
-  },
-  {
-    id: '50000000-0000-0000-0000-000000000003',
-    title: 'Legal contract final review with Elena',
-    description: 'Schedule 30-min call to finalize data protection addendum.',
-    type: 'meeting',
-    priority: 'urgent',
-    due_date: new Date(Date.now() + 86400000 * 2).toISOString(),
-    is_completed: false,
-    contact_name: 'Elena Rostova',
-    assigned_to: 'Alex Morgan',
-  },
-  {
-    id: '50000000-0000-0000-0000-000000000004',
-    title: 'Send monthly newsletter campaign recap',
-    description: 'Review click-through metrics on Q3 security webinar.',
-    type: 'email',
-    priority: 'low',
-    due_date: new Date(Date.now() - 86400000).toISOString(),
-    is_completed: true,
-    contact_name: 'David Kowalski',
-    assigned_to: 'David Miller',
-  },
-]
 
 export default function TasksPage() {
-  const { supabase } = useSupabase()
+  const { supabase, user } = useSupabase()
   const { can } = usePermissions()
 
-  const [tasks, setTasks] = useState(initialTasks)
+  const [tasks, setTasks] = useState<any[]>([])
+  const [contactsList, setContactsList] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [isAddOpen, setIsAddOpen] = useState(false)
 
@@ -92,7 +47,50 @@ export default function TasksPage() {
   const [type, setType] = useState('todo')
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
-  const [contactName, setContactName] = useState('')
+  const [contactId, setContactId] = useState('')
+
+  const loadTasksAndContacts = async () => {
+    try {
+      const [tasksRes, contactsRes] = await Promise.all([
+        (supabase.from('tasks') as any)
+          .select(`
+            *,
+            contact:contacts(first_name, last_name)
+          `)
+          .order('due_date', { ascending: true }),
+        (supabase.from('contacts') as any)
+          .select('id, first_name, last_name')
+          .order('first_name')
+      ])
+
+      if (tasksRes.data) {
+        setTasks(tasksRes.data)
+      }
+      if (contactsRes.data) {
+        setContactsList(contactsRes.data)
+      }
+    } catch (e) {
+      console.error('Failed to load tasks:', e)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadTasksAndContacts()
+
+    // Realtime subscription for cross-app synchronization
+    const channel = supabase
+      .channel('tasks_realtime_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        loadTasksAndContacts()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
 
   const filteredTasks = tasks.filter((t) => {
     if (filter === 'pending') return !t.is_completed
@@ -100,50 +98,79 @@ export default function TasksPage() {
     return true
   })
 
-  const toggleTask = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === taskId) {
-          const updated = !t.is_completed
-          toast.success(updated ? 'Task marked as completed' : 'Task marked as pending')
-          return { ...t, is_completed: updated }
-        }
-        return t
-      })
-    )
+  const toggleTask = async (taskId: string, currentCompleted: boolean) => {
+    try {
+      const nextCompleted = !currentCompleted
+      const { error } = await (supabase.from('tasks') as any)
+        .update({ is_completed: nextCompleted, updated_at: new Date().toISOString() })
+        .eq('id', taskId)
+
+      if (error) throw error
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, is_completed: nextCompleted } : t))
+      )
+      toast.success(nextCompleted ? 'Task marked as completed' : 'Task marked as pending')
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update task')
+    }
   }
 
-  const handleCreateTask = (e: React.FormEvent) => {
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      const { error } = await (supabase.from('tasks') as any)
+        .delete()
+        .eq('id', taskId)
+
+      if (error) throw error
+      toast.success('Task removed')
+      await loadTasksAndContacts()
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete task')
+    }
+  }
+
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title) {
       toast.error('Task title is required')
       return
     }
 
-    const newTask = {
-      id: Math.random().toString(),
-      title,
-      description,
-      type,
-      priority,
-      due_date: dueDate || new Date(Date.now() + 86400000).toISOString(),
-      is_completed: false,
-      contact_name: contactName || 'General',
-      assigned_to: 'Alex Morgan',
+    try {
+      const { error } = await (supabase.from('tasks') as any)
+        .insert([
+          {
+            title,
+            description: description || null,
+            type,
+            priority,
+            due_date: dueDate ? new Date(dueDate).toISOString() : null,
+            is_completed: false,
+            contact_id: contactId || null,
+            assigned_to: user?.id || null,
+          },
+        ])
+
+      if (error) throw error
+
+      toast.success('Task created and push alert dispatched to mobile assignee')
+      await loadTasksAndContacts()
+
+      setTitle('')
+      setDescription('')
+      setDueDate('')
+      setContactId('')
+      setIsAddOpen(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || 'Failed to create task')
     }
-
-    setTasks((prev) => [newTask, ...prev])
-    toast.success('Task created and push notification dispatched to mobile assignee')
-
-    setTitle('')
-    setDescription('')
-    setDueDate('')
-    setContactName('')
-    setIsAddOpen(false)
   }
 
   const getPriorityBadge = (p: string) => {
-    switch (p) {
+    const pr = (p || 'medium').toLowerCase()
+    switch (pr) {
       case 'urgent':
         return <Badge variant="destructive">Urgent</Badge>
       case 'high':
@@ -163,7 +190,7 @@ export default function TasksPage() {
             <CheckSquare className="h-6 w-6 text-primary" /> Tasks & Follow-ups
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track daily action items, call reminders, and auto-dispatched FCM push alerts.
+            Track daily action items, call reminders, and auto-dispatched FCM push alerts synchronized with mobile.
           </p>
         </div>
 
@@ -178,7 +205,7 @@ export default function TasksPage() {
               <DialogHeader>
                 <DialogTitle>Create New Task</DialogTitle>
                 <DialogDescription>
-                  Tasks assigned to team members automatically trigger push notifications to their mobile device.
+                  Tasks created here immediately trigger push notifications and sync to the Flutter mobile app.
                 </DialogDescription>
               </DialogHeader>
 
@@ -234,11 +261,18 @@ export default function TasksPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Linked Contact</label>
-                    <Input
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder="Sarah Jenkins"
-                    />
+                    <select
+                      value={contactId}
+                      onChange={(e) => setContactId(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                    >
+                      <option value="">-- None (General) --</option>
+                      {contactsList.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.first_name} {c.last_name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -247,7 +281,7 @@ export default function TasksPage() {
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Additional context or checklist items..."
+                    placeholder="Additional context or action items..."
                     className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs resize-none"
                   />
                 </div>
@@ -293,60 +327,82 @@ export default function TasksPage() {
       </div>
 
       {/* Task Cards List */}
-      <div className="space-y-3">
-        {filteredTasks.map((task) => (
-          <Card
-            key={task.id}
-            className={`shadow-sm transition-all ${
-              task.is_completed ? 'opacity-60 bg-muted/30' : 'hover:shadow-md'
-            }`}
-          >
-            <CardContent className="p-4 flex items-start gap-4">
-              <button
-                onClick={() => toggleTask(task.id)}
-                className="mt-0.5 text-primary hover:scale-110 transition-transform"
+      {isLoading ? (
+        <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <span>Loading tasks from Supabase...</span>
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <Card className="p-8 text-center text-xs text-muted-foreground">
+          No tasks found. Click "+ Add Task" or create a task from the mobile app.
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filteredTasks.map((task) => {
+            const contactName = task.contact ? `${task.contact.first_name} ${task.contact.last_name}`.trim() : null
+
+            return (
+              <Card
+                key={task.id}
+                className={`shadow-sm transition-all ${
+                  task.is_completed ? 'opacity-60 bg-muted/30' : 'hover:shadow-md'
+                }`}
               >
-                {task.is_completed ? (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground" />
-                )}
-              </button>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                  <h3
-                    className={`font-semibold text-sm text-foreground ${
-                      task.is_completed ? 'line-through text-muted-foreground' : ''
-                    }`}
+                <CardContent className="p-4 flex items-start gap-4">
+                  <button
+                    onClick={() => toggleTask(task.id, task.is_completed)}
+                    className="mt-0.5 text-primary hover:scale-110 transition-transform"
                   >
-                    {task.title}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    {getPriorityBadge(task.priority)}
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3" /> {formatDate(task.due_date)}
-                    </span>
+                    {task.is_completed ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </button>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <h3
+                        className={`font-semibold text-sm text-foreground ${
+                          task.is_completed ? 'line-through text-muted-foreground' : ''
+                        }`}
+                      >
+                        {task.title}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {getPriorityBadge(task.priority)}
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> {task.due_date ? formatDate(task.due_date) : 'No due date'}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                    )}
+
+                    {contactName && (
+                      <div className="mt-2.5 flex items-center gap-4 text-[11px] text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3" /> {contactName}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                {task.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
-                )}
-
-                <div className="mt-2.5 flex items-center gap-4 text-[11px] text-muted-foreground">
-                  {task.contact_name && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" /> {task.contact_name}
-                    </span>
-                  )}
-                  <span>Assigned: <strong>{task.assigned_to}</strong></span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

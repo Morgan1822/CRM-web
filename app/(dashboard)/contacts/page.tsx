@@ -14,7 +14,8 @@ import {
   Trash2,
   Edit2,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,99 +57,24 @@ interface ContactItem {
   last_name: string
   email: string | null
   phone: string | null
-  company_name: string
-  company_id: string | null
+  company: string | null
+  company_name?: string
   job_title: string | null
   status: string
-  lead_source: string | null
-  notes: string | null
+  lead_source?: string | null
+  notes?: string | null
   created_at: string
-  updated_at: string
-  updated_by: string | null
-  deleted_at: string | null
-  assigned_to: string
+  updated_at?: string
+  deleted_at?: string | null
+  assigned_to?: string | null
 }
 
-const initialContacts: ContactItem[] = [
-  {
-    id: '30000000-0000-0000-0000-000000000001',
-    first_name: 'Sarah',
-    last_name: 'Jenkins',
-    email: 'sarah.jenkins@acmecloud.io',
-    phone: '+1 (555) 123-4567',
-    company_name: 'Acme Cloud Dynamics',
-    company_id: '20000000-0000-0000-0000-000000000001',
-    job_title: 'VP of Engineering',
-    status: 'qualified',
-    lead_source: 'website',
-    notes: 'Interested in multi-region failover and dedicated support tier.',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-    updated_by: null,
-    deleted_at: null,
-    assigned_to: 'Alex Morgan',
-  },
-  {
-    id: '30000000-0000-0000-0000-000000000002',
-    first_name: 'Michael',
-    last_name: 'Chang',
-    email: 'mchang@starlightpay.com',
-    phone: '+1 (555) 987-6543',
-    company_name: 'Starlight FinTech',
-    company_id: '20000000-0000-0000-0000-000000000002',
-    job_title: 'Chief Product Officer',
-    status: 'lead',
-    lead_source: 'inbound_call',
-    notes: 'Evaluating API integration throughput for payment processing.',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-    updated_at: new Date().toISOString(),
-    updated_by: null,
-    deleted_at: null,
-    assigned_to: 'Sarah Jenkins',
-  },
-  {
-    id: '30000000-0000-0000-0000-000000000003',
-    first_name: 'Elena',
-    last_name: 'Rostova',
-    email: 'elena@apexbio.health',
-    phone: '+1 (555) 876-5432',
-    company_name: 'Apex BioHealth',
-    company_id: '20000000-0000-0000-0000-000000000003',
-    job_title: 'Head of Clinical Tech',
-    status: 'contacted',
-    lead_source: 'referral',
-    notes: 'Looking for HIPAA compliant CRM sync with native mobile agent app.',
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-    updated_at: new Date().toISOString(),
-    updated_by: null,
-    deleted_at: null,
-    assigned_to: 'Alex Morgan',
-  },
-  {
-    id: '30000000-0000-0000-0000-000000000004',
-    first_name: 'David',
-    last_name: 'Kowalski',
-    email: 'david@quantumlogistics.co',
-    phone: '+1 (555) 345-9012',
-    company_name: 'Quantum Logistics',
-    company_id: null,
-    job_title: 'Operations Director',
-    status: 'customer',
-    lead_source: 'campaign',
-    notes: 'Existing enterprise subscriber looking to add 50 more seats.',
-    created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
-    updated_at: new Date().toISOString(),
-    updated_by: null,
-    deleted_at: null,
-    assigned_to: 'David Miller',
-  },
-]
-
 export default function ContactsPage() {
-  const { supabase } = useSupabase()
+  const { supabase, user } = useSupabase()
   const { can } = usePermissions()
 
-  const [contacts, setContacts] = useState<ContactItem[]>(initialContacts)
+  const [contacts, setContacts] = useState<ContactItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -162,126 +88,140 @@ export default function ContactsPage() {
   const [companyName, setCompanyName] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [status, setStatus] = useState('lead')
-  const [leadSource, setLeadSource] = useState('website')
   const [notes, setNotes] = useState('')
 
-  // Load live contacts if Supabase connected
-  useEffect(() => {
-    const loadContacts = async () => {
-      try {
-        const { data } = await (supabase.from('contacts') as any)
-          .select(`
-            *,
-            company:companies(name)
-          `)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
+  const loadContacts = async () => {
+    try {
+      const { data, error } = await (supabase.from('contacts') as any)
+        .select('*')
+        .order('created_at', { ascending: false })
 
-        if (data && data.length > 0) {
-          const mapped = data.map((c: any) => ({
-            ...c,
-            company_name: c.company?.name || '',
-          }))
-          setContacts(mapped)
-        }
-      } catch (e) {
-        // use fallback initial contacts
+      if (!error && data) {
+        setContacts(data)
       }
+    } catch (e) {
+      console.error('Failed to load contacts:', e)
+    } finally {
+      setIsLoading(false)
     }
+  }
+
+  useEffect(() => {
     loadContacts()
+
+    // Realtime subscription for cross-app synchronization
+    const channel = supabase
+      .channel('contacts_realtime_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+        loadContacts()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [supabase])
 
   const filteredContacts = contacts.filter((contact) => {
-    const matchesSearch =
-      `${contact.first_name} ${contact.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.phone?.includes(searchQuery)
+    const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+    const comp = contact.company || contact.company_name || ''
 
-    const matchesStatus = selectedStatus === 'all' || contact.status === selectedStatus
+    const matchesSearch =
+      fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (contact.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      comp.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (contact.phone || '').includes(searchQuery)
+
+    const matchesStatus =
+      selectedStatus === 'all' || (contact.status || 'lead').toLowerCase() === selectedStatus.toLowerCase()
 
     return matchesSearch && matchesStatus && !contact.deleted_at
   })
 
   const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!firstName || !lastName) {
-      toast.error('First and last name are required')
+    if (!firstName) {
+      toast.error('First name is required')
       return
     }
 
-    if (editingContact) {
-      // Update existing
-      setContacts((prev) =>
-        prev.map((c) =>
-          c.id === editingContact.id
-            ? {
-                ...c,
-                first_name: firstName,
-                last_name: lastName,
-                email,
-                phone,
-                company_name: companyName,
-                job_title: jobTitle,
-                status,
-                lead_source: leadSource,
-                notes,
-                updated_at: new Date().toISOString(),
-              }
-            : c
-        )
-      )
-      toast.success('Contact updated successfully')
-    } else {
-      // Create new
-      const newContact: ContactItem = {
-        id: Math.random().toString(),
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        company_name: companyName,
-        company_id: null,
-        job_title: jobTitle,
-        status,
-        lead_source: leadSource,
-        notes,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        updated_by: null,
-        deleted_at: null,
-        assigned_to: 'Alex Morgan',
-      }
-      setContacts((prev) => [newContact, ...prev])
-      toast.success('New lead created and synced with shared Supabase database')
-    }
+    try {
+      if (editingContact) {
+        // Update existing in Supabase
+        const { error } = await (supabase.from('contacts') as any)
+          .update({
+            first_name: firstName,
+            last_name: lastName || '',
+            email: email || null,
+            phone: phone || null,
+            company: companyName || null,
+            job_title: jobTitle || null,
+            status: status || 'lead',
+            notes: notes || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingContact.id)
 
-    resetForm()
-    setIsAddOpen(false)
+        if (error) throw error
+        toast.success('Contact updated successfully')
+      } else {
+        // Create new in Supabase
+        const { error } = await (supabase.from('contacts') as any)
+          .insert([
+            {
+              first_name: firstName,
+              last_name: lastName || '',
+              email: email || null,
+              phone: phone || null,
+              company: companyName || null,
+              job_title: jobTitle || null,
+              status: status || 'lead',
+              notes: notes || null,
+              assigned_to: user?.id || null,
+            },
+          ])
+
+        if (error) throw error
+        toast.success('New lead created and synced with Flutter mobile app')
+      }
+
+      await loadContacts()
+      resetForm()
+      setIsAddOpen(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || 'Failed to save contact')
+    }
   }
 
-  const handleDeleteContact = (contactId: string) => {
+  const handleDeleteContact = async (contactId: string) => {
     if (!can('contacts', 'delete')) {
       toast.error('You do not have permission to delete contacts')
       return
     }
 
-    setContacts((prev) =>
-      prev.map((c) => (c.id === contactId ? { ...c, deleted_at: new Date().toISOString() } : c))
-    )
-    toast.success('Contact soft-deleted (preserved for audit & mobile sync)')
+    try {
+      const { error } = await (supabase.from('contacts') as any)
+        .delete()
+        .eq('id', contactId)
+
+      if (error) throw error
+      toast.success('Contact removed')
+      await loadContacts()
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete contact')
+    }
   }
 
   const handleEditClick = (contact: ContactItem) => {
     setEditingContact(contact)
-    setFirstName(contact.first_name)
-    setLastName(contact.last_name)
+    setFirstName(contact.first_name || '')
+    setLastName(contact.last_name || '')
     setEmail(contact.email || '')
     setPhone(contact.phone || '')
-    setCompanyName(contact.company_name || '')
+    setCompanyName(contact.company || contact.company_name || '')
     setJobTitle(contact.job_title || '')
     setStatus(contact.status || 'lead')
-    setLeadSource(contact.lead_source || 'website')
     setNotes(contact.notes || '')
     setIsAddOpen(true)
   }
@@ -295,21 +235,19 @@ export default function ContactsPage() {
     setCompanyName('')
     setJobTitle('')
     setStatus('lead')
-    setLeadSource('website')
     setNotes('')
   }
 
   const handleExportCSV = () => {
-    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Job Title', 'Status', 'Lead Source']
+    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Company', 'Job Title', 'Status']
     const rows = filteredContacts.map((c) => [
       c.first_name,
       c.last_name,
       c.email || '',
       c.phone || '',
-      c.company_name || '',
+      c.company || c.company_name || '',
       c.job_title || '',
       c.status,
-      c.lead_source || '',
     ])
 
     const csvContent =
@@ -327,17 +265,19 @@ export default function ContactsPage() {
   }
 
   const getStatusBadge = (st: string) => {
-    switch (st) {
+    const s = (st || 'lead').toLowerCase()
+    switch (s) {
       case 'qualified':
         return <Badge variant="success">Qualified</Badge>
       case 'lead':
-        return <Badge variant="secondary">New Lead</Badge>
+        return <Badge variant="secondary">Lead</Badge>
       case 'contacted':
         return <Badge variant="warning">Contacted</Badge>
       case 'customer':
+      case 'won':
         return <Badge className="bg-primary/20 text-primary border-primary/30">Customer</Badge>
       default:
-        return <Badge variant="outline">{st}</Badge>
+        return <Badge variant="outline" className="capitalize">{s}</Badge>
     }
   }
 
@@ -386,12 +326,11 @@ export default function ContactsPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">Last Name *</label>
+                      <label className="text-xs font-medium">Last Name</label>
                       <Input
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         placeholder="e.g. Jenkins"
-                        required
                       />
                     </div>
                   </div>
@@ -435,35 +374,19 @@ export default function ContactsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Status</label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
-                      >
-                        <option value="lead">New Lead</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="qualified">Qualified</option>
-                        <option value="customer">Customer</option>
-                        <option value="unqualified">Unqualified</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium">Lead Source</label>
-                      <select
-                        value={leadSource}
-                        onChange={(e) => setLeadSource(e.target.value)}
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
-                      >
-                        <option value="website">Website</option>
-                        <option value="inbound_call">Inbound Call</option>
-                        <option value="referral">Referral</option>
-                        <option value="campaign">Marketing Campaign</option>
-                        <option value="outbound">Outbound SDR</option>
-                      </select>
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">Status</label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                    >
+                      <option value="lead">Lead</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="qualified">Qualified</option>
+                      <option value="customer">Customer</option>
+                      <option value="unqualified">Unqualified</option>
+                    </select>
                   </div>
 
                   <div className="space-y-1">
@@ -471,7 +394,7 @@ export default function ContactsPage() {
                     <textarea
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add key context, budget notes, or technical requirements..."
+                      placeholder="Add key context, budget notes, or requirements..."
                       className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs resize-none"
                     />
                   </div>
@@ -531,21 +454,31 @@ export default function ContactsPage() {
               <TableHead className="text-xs font-semibold">Company & Title</TableHead>
               <TableHead className="text-xs font-semibold">Phone / Click-to-Call</TableHead>
               <TableHead className="text-xs font-semibold">Status</TableHead>
-              <TableHead className="text-xs font-semibold">Lead Source</TableHead>
-              <TableHead className="text-xs font-semibold">Assigned To</TableHead>
+              <TableHead className="text-xs font-semibold">Created Date</TableHead>
               <TableHead className="text-xs font-semibold text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredContacts.length === 0 ? (
+            {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
-                  No contacts found matching your criteria.
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span>Loading real-time contacts from Supabase...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredContacts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-xs">
+                  No contacts found in your database. Click "+ Add Contact" or create one in the mobile app.
                 </TableCell>
               </TableRow>
             ) : (
               filteredContacts.map((c) => {
-                const initials = `${c.first_name[0]}${c.last_name[0]}`.toUpperCase()
+                const initials = `${c.first_name?.[0] || ''}${c.last_name?.[0] || ''}`.toUpperCase() || 'C'
+                const companyDisplay = c.company || c.company_name || 'Individual'
+
                 return (
                   <TableRow key={c.id} className="text-xs hover:bg-muted/20 transition-colors">
                     <TableCell>
@@ -567,7 +500,7 @@ export default function ContactsPage() {
                     <TableCell>
                       <div>
                         <p className="font-medium text-foreground flex items-center gap-1">
-                          <Building2 className="h-3 w-3 text-muted-foreground" /> {c.company_name || 'Individual'}
+                          <Building2 className="h-3 w-3 text-muted-foreground" /> {companyDisplay}
                         </p>
                         <p className="text-[11px] text-muted-foreground">{c.job_title || '-'}</p>
                       </div>
@@ -591,13 +524,7 @@ export default function ContactsPage() {
                     <TableCell>{getStatusBadge(c.status)}</TableCell>
 
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {c.lead_source?.replace('_', ' ') || 'Direct'}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell>
-                      <span className="text-muted-foreground font-medium">{c.assigned_to || 'Unassigned'}</span>
+                      <span className="text-muted-foreground">{formatDate(c.created_at)}</span>
                     </TableCell>
 
                     <TableCell className="text-right">
@@ -608,20 +535,10 @@ export default function ContactsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuLabel className="text-xs">Contact Actions</DropdownMenuLabel>
-                          {c.phone && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                toast.success(`Opened Twilio dialer for ${c.first_name}`)
-                              }}
-                            >
-                              <Phone className="mr-2 h-3.5 w-3.5 text-emerald-600" />
-                              <span>Call Contact</span>
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuLabel className="text-xs">Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleEditClick(c)}>
                             <Edit2 className="mr-2 h-3.5 w-3.5" />
-                            <span>Edit Details</span>
+                            <span>Edit</span>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -629,7 +546,7 @@ export default function ContactsPage() {
                             className="text-destructive"
                           >
                             <Trash2 className="mr-2 h-3.5 w-3.5" />
-                            <span>Soft Delete</span>
+                            <span>Delete</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
