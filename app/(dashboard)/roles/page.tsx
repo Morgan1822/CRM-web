@@ -1,13 +1,29 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
-import { ShieldCheck, UserCheck, Check, X, UserPlus, Mail } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import {
+  ShieldCheck,
+  Check,
+  X,
+  UserPlus,
+  Loader2,
+  Plus,
+  AlertCircle
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { useSupabase } from '@/components/providers/supabase-provider'
 import { usePermissions } from '@/hooks/use-permission'
 import { toast } from 'sonner'
@@ -25,238 +41,591 @@ const ENTITIES = [
 ]
 
 export default function RolesPage() {
-  const { supabase, profile } = useSupabase()
+  const { supabase, profile, user } = useSupabase()
   const { isSuperAdmin } = usePermissions()
 
-  const [roles, setRoles] = useState<Role[]>([
-    {
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Admin',
-      description: 'Full unrestricted access to all entities and settings',
-      is_system: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000002',
-      name: 'Manager',
-      description: 'Can view, create, and manage leads, deals, tasks, and reports',
-      is_system: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000003',
-      name: 'Agent',
-      description: 'Standard sales agent: manages assigned contacts, deals, and tasks',
-      is_system: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [permissionsMatrix, setPermissionsMatrix] = useState<
+    Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }>
+  >({})
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
+  const [isLoadingPerms, setIsLoadingPerms] = useState(false)
+  const [isLoadingTeam, setIsLoadingTeam] = useState(true)
 
-  const [selectedRole, setSelectedRole] = useState<Role>(roles[0])
-  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }>>({
-    contacts: { view: true, create: true, edit: true, delete: true },
-    companies: { view: true, create: true, edit: true, delete: true },
-    deals: { view: true, create: true, edit: true, delete: true },
-    calls: { view: true, create: true, edit: true, delete: true },
-    tasks: { view: true, create: true, edit: true, delete: true },
-    activities: { view: true, create: true, edit: true, delete: true },
-    roles: { view: true, create: true, edit: true, delete: true },
-    settings: { view: true, create: true, edit: true, delete: true },
-  })
-
-  const [teamMembers, setTeamMembers] = useState([
-    { id: '1', email: 'admin@company.com', full_name: 'Admin User', role: 'Admin', status: 'Active' },
-    { id: '2', email: 'manager@company.com', full_name: 'Sales Manager', role: 'Manager', status: 'Active' },
-    { id: '3', email: 'agent@company.com', full_name: 'Sales Agent', role: 'Agent', status: 'Active' },
-  ])
-
+  // Invite Member Modal State
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
-  const [inviteRole, setInviteRole] = useState('Agent')
+  const [invitePhone, setInvitePhone] = useState('')
+  const [inviteRoleId, setInviteRoleId] = useState('')
   const [isInviteOpen, setIsInviteOpen] = useState(false)
+  const [isInviting, setIsInviting] = useState(false)
 
-  useEffect(() => {
-    const loadRoles = async () => {
-      try {
-        const { data } = await supabase.from('roles').select('*')
-        if (data && data.length > 0) {
-          setRoles(data)
-          setSelectedRole(data[0])
+  // Create Role Modal State
+  const [isCreateRoleOpen, setIsCreateRoleOpen] = useState(false)
+  const [newRoleName, setNewRoleName] = useState('')
+  const [newRoleDesc, setNewRoleDesc] = useState('')
+  const [isCreatingRole, setIsCreatingRole] = useState(false)
+
+  // 1. Fetch Roles from Supabase
+  const loadRoles = useCallback(async () => {
+    try {
+      const { data, error } = await (supabase.from('roles') as any)
+        .select('*')
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        setRoles(data)
+        setSelectedRole((prev) => {
+          if (!prev) return data[0]
+          const existing = data.find((r: Role) => r.id === prev.id)
+          return existing || data[0]
+        })
+        if (!inviteRoleId && data.length > 0) {
+          const agentRole = data.find((r: Role) => r.name.toLowerCase() === 'agent') || data[0]
+          setInviteRoleId(agentRole.id)
         }
-      } catch (e) {
-        // fallback
       }
+    } catch (e: any) {
+      console.error('Failed to load roles:', e)
+    } finally {
+      setIsLoadingRoles(false)
     }
-    loadRoles()
-  }, [supabase])
+  }, [supabase, inviteRoleId])
 
-  const handleTogglePermission = (entity: string, action: 'view' | 'create' | 'edit' | 'delete') => {
+  // 2. Fetch Permissions for the Selected Role
+  const loadRolePermissions = useCallback(
+    async (roleId: string) => {
+      setIsLoadingPerms(true)
+      try {
+        const { data, error } = await (supabase.from('role_permissions') as any)
+          .select('*')
+          .eq('role_id', roleId)
+
+        if (error) throw error
+
+        const matrix: Record<string, { view: boolean; create: boolean; edit: boolean; delete: boolean }> = {}
+
+        // Initialize defaults for all entities
+        ENTITIES.forEach((e) => {
+          const isSysAdmin = selectedRole?.name?.toLowerCase() === 'admin'
+          matrix[e.key] = {
+            view: isSysAdmin,
+            create: isSysAdmin,
+            edit: isSysAdmin,
+            delete: isSysAdmin,
+          }
+        })
+
+        // Fill with actual records from Supabase
+        if (data && data.length > 0) {
+          data.forEach((row: any) => {
+            if (row.entity) {
+              matrix[row.entity] = {
+                view: !!row.can_view,
+                create: !!row.can_create,
+                edit: !!row.can_edit,
+                delete: !!row.can_delete,
+              }
+            }
+          })
+        }
+
+        setPermissionsMatrix(matrix)
+      } catch (e: any) {
+        console.error('Failed to load role permissions:', e)
+      } finally {
+        setIsLoadingPerms(false)
+      }
+    },
+    [supabase, selectedRole?.name]
+  )
+
+  // 3. Fetch Team Members (Profiles) from Supabase
+  const loadTeamMembers = useCallback(async () => {
+    setIsLoadingTeam(true)
+    try {
+      const { data, error } = await (supabase.from('profiles') as any)
+        .select(`
+          id,
+          email,
+          full_name,
+          phone,
+          status,
+          avatar_url,
+          role_id,
+          role:roles(id, name, description),
+          created_at
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      if (data && data.length > 0) {
+        setTeamMembers(data)
+      } else if (user) {
+        // Fallback to active logged in session
+        setTeamMembers([
+          {
+            id: user.id,
+            email: user.email || 'admin@crm.com',
+            full_name: profile?.full_name || user.email?.split('@')[0] || 'Administrator',
+            role_id: profile?.role_id || '00000000-0000-0000-0000-000000000001',
+            role: profile?.role || { name: 'Admin' },
+            status: 'active',
+          },
+        ])
+      }
+    } catch (e: any) {
+      console.error('Failed to load team members:', e)
+    } finally {
+      setIsLoadingTeam(false)
+    }
+  }, [supabase, user, profile])
+
+  // Initial Data Load
+  useEffect(() => {
+    loadRoles()
+    loadTeamMembers()
+  }, [loadRoles, loadTeamMembers])
+
+  // Load Permissions when selectedRole changes
+  useEffect(() => {
+    if (selectedRole?.id) {
+      loadRolePermissions(selectedRole.id)
+    }
+  }, [selectedRole?.id, loadRolePermissions])
+
+  // Supabase Real-time Subscriptions
+  useEffect(() => {
+    const rolesChannel = supabase
+      .channel('roles_realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'roles' }, () => {
+        loadRoles()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        loadTeamMembers()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'role_permissions' }, () => {
+        if (selectedRole?.id) {
+          loadRolePermissions(selectedRole.id)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(rolesChannel)
+    }
+  }, [supabase, loadRoles, loadTeamMembers, selectedRole?.id, loadRolePermissions])
+
+  // 4. Toggle Permission with immediate Supabase Upsert
+  const handleTogglePermission = async (
+    entityKey: string,
+    action: 'view' | 'create' | 'edit' | 'delete'
+  ) => {
     if (!isSuperAdmin) {
       toast.error('Only Admins can modify role permissions')
       return
     }
 
+    if (!selectedRole) return
+
+    const currentEntityPerms = permissionsMatrix[entityKey] || {
+      view: false,
+      create: false,
+      edit: false,
+      delete: false,
+    }
+
+    const updatedValue = !currentEntityPerms[action]
+
+    // Optimistic UI update
     setPermissionsMatrix((prev) => ({
       ...prev,
-      [entity]: {
-        ...prev[entity],
-        [action]: !prev[entity]?.[action],
+      [entityKey]: {
+        ...prev[entityKey],
+        [action]: updatedValue,
       },
     }))
-    toast.success(`Updated ${action} permission for ${entity}`)
+
+    try {
+      const payload = {
+        role_id: selectedRole.id,
+        entity: entityKey,
+        can_view: action === 'view' ? updatedValue : currentEntityPerms.view,
+        can_create: action === 'create' ? updatedValue : currentEntityPerms.create,
+        can_edit: action === 'edit' ? updatedValue : currentEntityPerms.edit,
+        can_delete: action === 'delete' ? updatedValue : currentEntityPerms.delete,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error } = await (supabase.from('role_permissions') as any).upsert(
+        payload,
+        { onConflict: 'role_id,entity' }
+      )
+
+      if (error) throw error
+
+      toast.success(
+        `${action.toUpperCase()} permission for ${entityKey} set to ${
+          updatedValue ? 'Enabled' : 'Disabled'
+        }`
+      )
+    } catch (err: any) {
+      console.error('Failed to save permission:', err)
+      toast.error(err.message || 'Failed to update permission in database')
+      // Revert on failure
+      loadRolePermissions(selectedRole.id)
+    }
   }
 
-  const handleInviteUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inviteEmail) {
-      toast.error('Please provide an email address')
+  // 5. Change Member Role with direct Supabase update
+  const handleChangeMemberRole = async (memberId: string, newRoleId: string) => {
+    if (!isSuperAdmin) {
+      toast.error('Only Admins can change team member roles')
       return
     }
 
-    setTeamMembers((prev) => [
-      ...prev,
-      {
-        id: Math.random().toString(),
-        email: inviteEmail,
-        full_name: inviteName || inviteEmail.split('@')[0],
-        role: inviteRole,
-        status: 'Invited',
-      },
-    ])
+    const targetRole = roles.find((r) => r.id === newRoleId)
 
-    toast.success(`Invitation sent to ${inviteEmail}`)
-    setInviteEmail('')
-    setInviteName('')
-    setIsInviteOpen(false)
+    // Optimistic UI update
+    setTeamMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, role_id: newRoleId, role: targetRole || m.role }
+          : m
+      )
+    )
+
+    try {
+      const { error } = await (supabase.from('profiles') as any)
+        .update({
+          role_id: newRoleId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberId)
+
+      if (error) throw error
+
+      toast.success(`Role updated to ${targetRole?.name || 'Selected Role'}`)
+    } catch (err: any) {
+      console.error('Failed to update member role:', err)
+      toast.error(err.message || 'Failed to update role in database')
+      loadTeamMembers()
+    }
+  }
+
+  // 6. Invite / Add Team Member
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inviteEmail.trim()) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    setIsInviting(true)
+    try {
+      const targetRole = roles.find((r) => r.id === inviteRoleId) || roles[0]
+
+      const { error } = await (supabase.from('profiles') as any).insert([
+        {
+          email: inviteEmail.trim().toLowerCase(),
+          full_name: inviteName.trim() || inviteEmail.split('@')[0],
+          phone: invitePhone.trim() || null,
+          role_id: targetRole?.id || null,
+          status: 'active',
+        },
+      ])
+
+      if (error) {
+        // If conflict on email, try update
+        if (error.code === '23505') {
+          await (supabase.from('profiles') as any)
+            .update({
+              role_id: targetRole?.id || null,
+              full_name: inviteName.trim() || inviteEmail.split('@')[0],
+              status: 'active',
+            })
+            .eq('email', inviteEmail.trim().toLowerCase())
+        } else {
+          throw error
+        }
+      }
+
+      toast.success(`Team member ${inviteEmail} added with role ${targetRole?.name}`)
+      setInviteEmail('')
+      setInviteName('')
+      setInvitePhone('')
+      setIsInviteOpen(false)
+      await loadTeamMembers()
+    } catch (err: any) {
+      console.error('Invite error:', err)
+      toast.error(err.message || 'Failed to add team member')
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  // 7. Create Custom Role
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newRoleName.trim()) {
+      toast.error('Please enter a role name')
+      return
+    }
+
+    setIsCreatingRole(true)
+    try {
+      const { data, error } = await (supabase.from('roles') as any)
+        .insert([
+          {
+            name: newRoleName.trim(),
+            description: newRoleDesc.trim() || null,
+            is_system: false,
+          },
+        ])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      toast.success(`Role "${newRoleName}" created successfully`)
+      setNewRoleName('')
+      setNewRoleDesc('')
+      setIsCreateRoleOpen(false)
+      await loadRoles()
+      if (data) {
+        setSelectedRole(data)
+      }
+    } catch (err: any) {
+      console.error('Create role error:', err)
+      toast.error(err.message || 'Failed to create custom role')
+    } finally {
+      setIsCreatingRole(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-primary" /> Roles & Permissions
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage user roles, granular permissions, and team members.
+            Manage granular access control and assign roles to your team members.
           </p>
         </div>
 
-        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 shadow-sm">
-              <UserPlus className="h-4 w-4" /> Add Team Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite Team Member</DialogTitle>
-              <DialogDescription>
-                Assign a role and grant access to the CRM workspace.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleInviteUser} className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Full Name</label>
-                <Input
-                  placeholder="e.g. Anand V"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Email Address</label>
-                <Input
-                  type="email"
-                  placeholder="anand@company.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Role</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="Admin">Admin</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Agent">Agent</option>
-                </select>
-              </div>
-              <DialogFooter className="pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsInviteOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Send Invite</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <>
+              {/* Create Role Modal */}
+              <Dialog open={isCreateRoleOpen} onOpenChange={setIsCreateRoleOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                    <Plus className="h-3.5 w-3.5" /> New Role
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create Custom Role</DialogTitle>
+                    <DialogDescription>
+                      Add a custom role with tailored entity permissions.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateRole} className="space-y-3.5 py-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Role Name *</label>
+                      <Input
+                        placeholder="e.g. Account Executive"
+                        value={newRoleName}
+                        onChange={(e) => setNewRoleName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Description</label>
+                      <Input
+                        placeholder="e.g. Manages enterprise accounts and closed deals"
+                        value={newRoleDesc}
+                        onChange={(e) => setNewRoleDesc(e.target.value)}
+                      />
+                    </div>
+                    <DialogFooter className="pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreateRoleOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isCreatingRole}>
+                        {isCreatingRole && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                        Create Role
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Add Member Modal */}
+              <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1.5 text-xs shadow-sm">
+                    <UserPlus className="h-3.5 w-3.5" /> Add Team Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add Team Member</DialogTitle>
+                    <DialogDescription>
+                      Assign a role and grant access to the CRM.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleInviteUser} className="space-y-3.5 py-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Full Name</label>
+                      <Input
+                        placeholder="e.g. Rahul Sharma"
+                        value={inviteName}
+                        onChange={(e) => setInviteName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Email Address *</label>
+                      <Input
+                        type="email"
+                        placeholder="rahul@company.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Phone Number</label>
+                      <Input
+                        placeholder="+91 98765 43210"
+                        value={invitePhone}
+                        onChange={(e) => setInvitePhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Assign Role *</label>
+                      <select
+                        value={inviteRoleId}
+                        onChange={(e) => setInviteRoleId(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+                      >
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} {r.is_system ? '(Default)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <DialogFooter className="pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsInviteOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isInviting}>
+                        {isInviting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                        Add Member
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="matrix" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="matrix">Permission Matrix</TabsTrigger>
-          <TabsTrigger value="team">Team Members ({teamMembers.length})</TabsTrigger>
+        <TabsList className="bg-muted/60 p-1">
+          <TabsTrigger value="matrix" className="text-xs">
+            Permission Matrix
+          </TabsTrigger>
+          <TabsTrigger value="team" className="text-xs">
+            Team Members ({teamMembers.length})
+          </TabsTrigger>
         </TabsList>
 
         {/* Permissions Matrix Tab */}
         <TabsContent value="matrix" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Roles Selection List */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Roles
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Available Roles
+                </h3>
+                {isLoadingRoles && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+              </div>
+
               <div className="space-y-2">
                 {roles.map((r) => {
-                  const isSelected = selectedRole.id === r.id
+                  const isSelected = selectedRole?.id === r.id
                   return (
                     <div
                       key={r.id}
                       onClick={() => setSelectedRole(r)}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                         isSelected
                           ? 'border-primary bg-primary/5 shadow-sm'
                           : 'border-border/80 bg-card hover:bg-accent/40'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm">{r.name}</span>
+                        <span className="font-semibold text-xs text-foreground">{r.name}</span>
                         {r.is_system && (
-                          <Badge variant="outline" className="text-[10px]">
-                            Default
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            System
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                        {r.description}
-                      </p>
+                      {r.description && (
+                        <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+                          {r.description}
+                        </p>
+                      )}
                     </div>
                   )
                 })}
               </div>
             </div>
 
-            {/* Entity Permissions Table */}
+            {/* Granular Permissions Table */}
             <div className="md:col-span-2">
-              <Card>
+              <Card className="shadow-sm border-border/80">
                 <CardHeader className="pb-3 border-b border-border/60">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base font-semibold">
-                        {selectedRole.name} Permissions
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <span>{selectedRole?.name || 'Role'} Permissions</span>
+                        {selectedRole?.is_system && (
+                          <Badge variant="secondary" className="text-[10px] font-normal">
+                            Default Role
+                          </Badge>
+                        )}
                       </CardTitle>
                       <CardDescription className="text-xs mt-0.5">
-                        Access controls for the {selectedRole.name} role
+                        {selectedRole?.description ||
+                          'Click any check/cross box to toggle real-time Supabase access controls.'}
                       </CardDescription>
                     </div>
+
+                    {isLoadingPerms && (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -271,9 +640,9 @@ export default function RolesPage() {
 
                     {ENTITIES.map((entity) => {
                       const perms = permissionsMatrix[entity.key] || {
-                        view: true,
-                        create: true,
-                        edit: true,
+                        view: false,
+                        create: false,
+                        edit: false,
                         delete: false,
                       }
 
@@ -284,59 +653,83 @@ export default function RolesPage() {
                         >
                           <div className="font-medium text-foreground">{entity.label}</div>
 
-                          {/* View */}
+                          {/* View Toggle */}
                           <div className="text-center">
                             <button
+                              type="button"
                               onClick={() => handleTogglePermission(entity.key, 'view')}
-                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-colors ${
+                              title={`Toggle View for ${entity.label}`}
+                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-all ${
                                 perms.view
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-muted text-muted-foreground/50'
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                  : 'bg-muted text-muted-foreground/40 hover:bg-muted/80'
                               }`}
                             >
-                              {perms.view ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                              {perms.view ? (
+                                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                              ) : (
+                                <X className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
 
-                          {/* Create */}
+                          {/* Create Toggle */}
                           <div className="text-center">
                             <button
+                              type="button"
                               onClick={() => handleTogglePermission(entity.key, 'create')}
-                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-colors ${
+                              title={`Toggle Create for ${entity.label}`}
+                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-all ${
                                 perms.create
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-muted text-muted-foreground/50'
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                  : 'bg-muted text-muted-foreground/40 hover:bg-muted/80'
                               }`}
                             >
-                              {perms.create ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                              {perms.create ? (
+                                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                              ) : (
+                                <X className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
 
-                          {/* Edit */}
+                          {/* Edit Toggle */}
                           <div className="text-center">
                             <button
+                              type="button"
                               onClick={() => handleTogglePermission(entity.key, 'edit')}
-                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-colors ${
+                              title={`Toggle Edit for ${entity.label}`}
+                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-all ${
                                 perms.edit
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-muted text-muted-foreground/50'
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                  : 'bg-muted text-muted-foreground/40 hover:bg-muted/80'
                               }`}
                             >
-                              {perms.edit ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                              {perms.edit ? (
+                                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                              ) : (
+                                <X className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
 
-                          {/* Delete */}
+                          {/* Delete Toggle */}
                           <div className="text-center">
                             <button
+                              type="button"
                               onClick={() => handleTogglePermission(entity.key, 'delete')}
-                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-colors ${
+                              title={`Toggle Delete for ${entity.label}`}
+                              className={`h-6 w-6 rounded-md inline-flex items-center justify-center transition-all ${
                                 perms.delete
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                  : 'bg-muted text-muted-foreground/50'
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                  : 'bg-muted text-muted-foreground/40 hover:bg-muted/80'
                               }`}
                             >
-                              {perms.delete ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                              {perms.delete ? (
+                                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                              ) : (
+                                <X className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -351,57 +744,90 @@ export default function RolesPage() {
 
         {/* Team Members Tab */}
         <TabsContent value="team">
-          <Card>
+          <Card className="shadow-sm border-border/80">
             <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-base">Team Members</CardTitle>
+              <CardTitle className="text-sm font-semibold">Workspace Team Members</CardTitle>
               <CardDescription className="text-xs">
-                Active team members and their assigned CRM roles.
+                Real-time Supabase user profiles and their assigned security roles.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border/60">
-                {teamMembers.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center justify-between p-4 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                        {member.full_name.substring(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold">{member.full_name}</p>
-                        <p className="text-[11px] text-muted-foreground">{member.email}</p>
-                      </div>
-                    </div>
+              {isLoadingTeam ? (
+                <div className="py-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span>Loading team members...</span>
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+                  <AlertCircle className="h-6 w-6 text-muted-foreground/60" />
+                  <span>No team members found. Click &quot;Add Team Member&quot; above to add one.</span>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {teamMembers.map((member) => {
+                    const initials = (member.full_name || member.email || 'U')
+                      .split(' ')
+                      .map((n: string) => n[0])
+                      .join('')
+                      .substring(0, 2)
+                      .toUpperCase()
 
-                    <div className="flex items-center gap-3">
-                      <Badge
-                        variant={member.status === 'Active' ? 'success' : 'secondary'}
-                        className="text-[10px]"
-                      >
-                        {member.status}
-                      </Badge>
+                    const currentRoleId = member.role_id || member.role?.id || ''
 
-                      <select
-                        value={member.role}
-                        onChange={(e) => {
-                          const newRole = e.target.value
-                          setTeamMembers((prev) =>
-                            prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m))
-                          )
-                          toast.success(`Updated ${member.full_name}'s role to ${newRole}`)
-                        }}
-                        className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/20 transition-colors gap-3"
                       >
-                        <option value="Admin">Admin</option>
-                        <option value="Manager">Manager</option>
-                        <option value="Agent">Agent</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            {initials}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-semibold text-foreground">
+                                {member.full_name || 'Team Member'}
+                              </p>
+                              {member.id === user?.id && (
+                                <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                                  You
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">{member.email}</p>
+                            {member.phone && (
+                              <p className="text-[10px] text-muted-foreground/80">{member.phone}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 self-end sm:self-auto">
+                          <Badge
+                            variant={member.status === 'active' ? 'default' : 'secondary'}
+                            className="text-[10px] capitalize font-normal"
+                          >
+                            {member.status || 'Active'}
+                          </Badge>
+
+                          {/* Role Selector Dropdown */}
+                          <select
+                            value={currentRoleId}
+                            onChange={(e) => handleChangeMemberRole(member.id, e.target.value)}
+                            disabled={!isSuperAdmin}
+                            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            {roles.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -409,3 +835,4 @@ export default function RolesPage() {
     </div>
   )
 }
+
