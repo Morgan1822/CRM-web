@@ -27,60 +27,64 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          role:roles(*)
-        `)
+        .select('*')
         .eq('id', currentUser.id)
         .maybeSingle()
 
       if (profileData) {
         const rawProfile = profileData as any
+        const roleString = typeof rawProfile.role === 'string' && rawProfile.role.trim().length > 0
+          ? rawProfile.role
+          : rawProfile.role?.name || 'Admin'
+
         let permissionsMap: Record<string, any> = {}
         if (rawProfile.role_id) {
-          const { data: permissions } = await supabase
-            .from('role_permissions')
-            .select('*')
-            .eq('role_id', rawProfile.role_id)
+          try {
+            const { data: permissions } = await supabase
+              .from('role_permissions')
+              .select('*')
+              .eq('role_id', rawProfile.role_id)
 
-          if (permissions) {
-            ;(permissions as RolePermission[]).forEach(p => {
-              permissionsMap[p.entity] = {
-                can_view: p.can_view,
-                can_create: p.can_create,
-                can_edit: p.can_edit,
-                can_delete: p.can_delete,
-              }
-            })
+            if (permissions) {
+              ;(permissions as RolePermission[]).forEach(p => {
+                permissionsMap[p.entity] = {
+                  can_view: p.can_view,
+                  can_create: p.can_create,
+                  can_edit: p.can_edit,
+                  can_delete: p.can_delete,
+                }
+              })
+            }
+          } catch (e) {
+            // ignore
           }
         }
+
         setProfile({
           ...rawProfile,
+          role: roleString,
           permissions: permissionsMap,
         })
       } else {
-        // Fallback default admin profile for initial state
-        setProfile({
+        // If user profile doesn't exist in database yet, initialize and attempt upsert
+        const defaultRole = currentUser.email?.includes('admin') ? 'Admin' : 'Agent'
+        const initialProfile = {
           id: currentUser.id,
           email: currentUser.email || '',
-          full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Admin User',
-          avatar_url: null,
-          role_id: null,
-          phone: null,
+          full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
+          avatar_url: currentUser.user_metadata?.avatar_url || null,
+          role: defaultRole,
           status: 'active',
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          deleted_at: null,
-          permissions: {
-            contacts: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            companies: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            deals: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            calls: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            tasks: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            roles: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-            settings: { can_view: true, can_create: true, can_edit: true, can_delete: true },
-          }
-        })
+        }
+
+        try {
+          await (supabase.from('profiles') as any).upsert(initialProfile)
+        } catch (e) {
+          // ignore
+        }
+
+        setProfile(initialProfile as any)
       }
     } catch (err) {
       console.error('Error fetching user profile:', err)

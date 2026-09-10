@@ -40,7 +40,7 @@ export interface UserPermissionMap {
   }
 }
 
-export interface AuthUserProfile extends Profile {
-  role?: Role
+export interface AuthUserProfile extends Omit<Profile, 'role'> {
+  role?: string | Role | any
   permissions?: UserPermissionMap
 }

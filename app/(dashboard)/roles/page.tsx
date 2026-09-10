@@ -98,7 +98,7 @@ const getDefaultPermissionsForRole = (roleName: string) => {
 }
 
 export default function RolesPage() {
-  const { supabase, profile, user } = useSupabase()
+  const { supabase, profile, user, refreshProfile } = useSupabase()
   const { isSuperAdmin } = usePermissions()
 
   const [roles, setRoles] = useState<Role[]>(DEFAULT_ROLES)
@@ -199,18 +199,20 @@ export default function RolesPage() {
     setIsLoadingTeam(true)
     try {
       const { data, error } = await (supabase.from('profiles') as any)
-        .select('id, email, full_name, avatar_url, role_id, created_at')
+        .select('id, email, full_name, avatar_url, role, role_id, status, created_at')
         .order('created_at', { ascending: false })
 
       if (error || !data || data.length === 0) {
         // Fallback to active logged in session
         if (user) {
+          const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Agent'
           setTeamMembers([
             {
               id: user.id,
               email: user.email || 'admin@crm.com',
-              full_name: profile?.full_name || user.email?.split('@')[0] || 'Administrator',
-              role_id: profile?.role_id || DEFAULT_ROLES[0].id,
+              full_name: profile?.full_name || user.email?.split('@')[0] || 'User',
+              role: currentRoleName,
+              role_id: profile?.role_id || DEFAULT_ROLES[2].id,
               status: 'active',
             },
           ])
@@ -223,12 +225,14 @@ export default function RolesPage() {
     } catch (e: any) {
       console.error('Failed to load team members:', e)
       if (user) {
+        const currentRoleName = typeof profile?.role === 'string' ? profile.role : 'Agent'
         setTeamMembers([
           {
             id: user.id,
             email: user.email || 'admin@crm.com',
-            full_name: profile?.full_name || user.email?.split('@')[0] || 'Administrator',
-            role_id: profile?.role_id || DEFAULT_ROLES[0].id,
+            full_name: profile?.full_name || user.email?.split('@')[0] || 'User',
+            role: currentRoleName,
+            role_id: profile?.role_id || DEFAULT_ROLES[2].id,
             status: 'active',
           },
         ])
@@ -340,26 +344,42 @@ export default function RolesPage() {
       return
     }
 
-    const targetRole = roles.find((r) => r.id === newRoleId)
+    const targetRole = roles.find((r) => r.id === newRoleId || r.name.toLowerCase() === newRoleId.toLowerCase()) || roles[2]
+    const roleName = targetRole.name || newRoleId
 
     // Optimistic UI update
     setTeamMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, role_id: newRoleId } : m))
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, role: roleName, role_id: targetRole.id }
+          : m
+      )
     )
 
     try {
+      const updateData: Record<string, any> = {
+        role: roleName,
+        updated_at: new Date().toISOString(),
+      }
+      if (targetRole.id) {
+        updateData.role_id = targetRole.id
+      }
+
       const { error } = await (supabase.from('profiles') as any)
-        .update({
-          role_id: newRoleId,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', memberId)
 
       if (error) {
-        console.warn('Role update fallback:', error)
+        await (supabase.from('profiles') as any)
+          .update({ role: roleName, updated_at: new Date().toISOString() })
+          .eq('id', memberId)
       }
 
-      toast.success(`Role updated to ${targetRole?.name || 'Selected Role'}`)
+      if (memberId === user?.id) {
+        await refreshProfile()
+      }
+
+      toast.success(`Role updated to ${roleName}`)
     } catch (err: any) {
       console.error('Failed to update member role:', err)
       toast.error(err.message || 'Failed to update role')
@@ -377,12 +397,14 @@ export default function RolesPage() {
 
     setIsInviting(true)
     try {
-      const targetRole = roles.find((r) => r.id === inviteRoleId) || roles[0]
+      const targetRole = roles.find((r) => r.id === inviteRoleId || r.name.toLowerCase() === inviteRoleId.toLowerCase()) || roles[2]
+      const roleName = targetRole.name || 'Agent'
 
       const payload = {
         email: inviteEmail.trim().toLowerCase(),
         full_name: inviteName.trim() || inviteEmail.split('@')[0],
-        role_id: targetRole?.id || null,
+        role: roleName,
+        role_id: targetRole.id,
         status: 'active',
       }
 
@@ -393,7 +415,8 @@ export default function RolesPage() {
           // Already exists -> update role
           await (supabase.from('profiles') as any)
             .update({
-              role_id: targetRole?.id || null,
+              role: roleName,
+              role_id: targetRole.id,
               full_name: inviteName.trim() || inviteEmail.split('@')[0],
             })
             .eq('email', inviteEmail.trim().toLowerCase())
@@ -404,7 +427,8 @@ export default function RolesPage() {
               id: Math.random().toString(),
               email: inviteEmail.trim().toLowerCase(),
               full_name: inviteName.trim() || inviteEmail.split('@')[0],
-              role_id: targetRole?.id,
+              role: roleName,
+              role_id: targetRole.id,
               status: 'active',
             },
             ...prev,
@@ -412,7 +436,7 @@ export default function RolesPage() {
         }
       }
 
-      toast.success(`Team member ${inviteEmail} added with role ${targetRole?.name}`)
+      toast.success(`Team member ${inviteEmail} added with role ${roleName}`)
       setInviteEmail('')
       setInviteName('')
       setIsInviteOpen(false)
@@ -831,7 +855,13 @@ export default function RolesPage() {
                       .substring(0, 2)
                       .toUpperCase()
 
-                    const currentRoleId = member.role_id || DEFAULT_ROLES[0].id
+                    const rawRole = member.role || (roles.find((r) => r.id === member.role_id)?.name) || 'Agent'
+                    const memberRoleName = typeof rawRole === 'string' ? rawRole : rawRole?.name || 'Agent'
+                    const matchingRole =
+                      roles.find((r) => r.name.toLowerCase() === memberRoleName.toLowerCase()) ||
+                      roles.find((r) => r.id === member.role_id) ||
+                      roles[2]
+                    const currentRoleId = matchingRole?.id || member.role_id || DEFAULT_ROLES[2].id
 
                     return (
                       <div
