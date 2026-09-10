@@ -314,14 +314,14 @@ export default function DealsPage() {
         </div>
       </div>
 
-      {/* Kanban Board Container */}
+      {/* Kanban Board Horizontal Scrolling Container */}
       {isLoading ? (
         <div className="py-20 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <span>Loading pipeline...</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[550px] w-full">
           {STAGES.map((stage) => {
             const stageDeals = deals.filter((d) => {
               const st = (d.stage || 'lead').toLowerCase()
@@ -331,9 +331,12 @@ export default function DealsPage() {
             const stageTotal = stageDeals.reduce((acc, curr) => acc + Number(curr.value || 0), 0)
 
             return (
-              <div key={stage.key} className="flex flex-col min-w-[240px] bg-muted/30 rounded-xl p-3 border border-border/70">
+              <div
+                key={stage.key}
+                className="w-72 sm:w-80 shrink-0 flex flex-col bg-muted/30 rounded-xl p-3.5 border border-border/70 shadow-sm"
+              >
                 {/* Stage Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                <div className="flex items-center justify-between pb-2.5 border-b border-border/60">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${stage.color}`} />
                     <h3 className="font-semibold text-xs text-foreground truncate">{stage.name}</h3>
@@ -344,26 +347,26 @@ export default function DealsPage() {
                 </div>
 
                 {/* Column Total */}
-                <div className="text-[11px] text-muted-foreground font-medium py-1.5">
+                <div className="text-xs font-semibold text-foreground py-2">
                   {formatCurrency(stageTotal)}
                 </div>
 
-                {/* Deal Cards */}
-                <div className="flex-1 space-y-3 mt-2">
+                {/* Deal Cards Container */}
+                <div className="space-y-3 mt-1 min-h-[300px]">
                   {stageDeals.length === 0 ? (
-                    <div className="h-24 rounded-lg border border-dashed border-border/80 flex items-center justify-center text-[11px] text-muted-foreground">
-                      No deals
+                    <div className="h-32 rounded-lg border border-dashed border-border/80 flex items-center justify-center text-xs text-muted-foreground bg-background/50">
+                      No deals in this stage
                     </div>
                   ) : (
                     stageDeals.map((deal) => {
-                      const contactName = deal.contact ? `${deal.contact.first_name} ${deal.contact.last_name}`.trim() : null
+                      const contactName = deal.contact ? `${deal.contact.first_name} ${deal.contact.last_name || ''}`.trim() : null
                       const companyName = deal.contact?.company || null
 
                       return (
                         <Card key={deal.id} className="shadow-sm hover:shadow-md transition-shadow bg-card border-border/80">
                           <CardContent className="p-3.5 space-y-2.5">
                             <div className="flex items-start justify-between gap-1">
-                              <h4 className="font-semibold text-xs text-foreground leading-tight line-clamp-2">
+                              <h4 className="font-semibold text-xs text-foreground leading-snug line-clamp-2">
                                 {deal.title}
                               </h4>
 

@@ -17,21 +17,15 @@ export default function DashboardLayout({
     contactId?: string
   }>({})
 
-  // Expose global helper for click-to-call across contacts/deals
-  const handleTriggerCall = (phone: string, name?: string, contactId?: string) => {
-    setDialerTarget({ phone, name, contactId })
-    setIsDialerOpen(true)
-  }
-
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Persistent Sidebar */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <Header onOpenDialer={() => setIsDialerOpen(true)} />
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto w-full">
           {children}
         </main>
       </div>
